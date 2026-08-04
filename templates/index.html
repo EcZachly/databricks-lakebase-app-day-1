@@ -4,41 +4,280 @@
   <meta charset="UTF-8">
   <title>Massive Stock Watchlist</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 60px auto; color: #222; }
-    h1 { font-size: 20px; }
-    label { display: block; margin-top: 16px; font-weight: 600; }
-    input[type="text"] { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; cursor: pointer; }
-    #result { margin-top: 20px; white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 6px; min-height: 20px; }
-    .hint { color: #777; font-size: 13px; margin-top: 4px; }
-    table { width: 100%; margin-top: 24px; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-    th { font-size: 13px; color: #555; text-transform: uppercase; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #2d3748;
+    }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      color: white;
+    }
+    
+    h1 {
+      font-size: 42px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      margin-bottom: 24px;
+    }
+    
+    .hint {
+      color: #718096;
+      font-size: 14px;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #4a5568;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      background: #f7fafc;
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    input[type="text"]::placeholder {
+      color: #a0aec0;
+    }
+    
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .btn-delete {
+      width: auto;
+      margin: 0;
+      padding: 8px 16px;
+      background: #f56565;
+      font-size: 14px;
+      border-radius: 6px;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    
+    .btn-delete:hover {
+      background: #e53e3e;
+      box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+    }
+    
+    #result {
+      margin-top: 20px;
+      padding: 16px 20px;
+      background: #edf2f7;
+      border-left: 4px solid #667eea;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 20px;
+      display: none;
+    }
+    
+    #result.show {
+      display: block;
+      animation: slideIn 0.3s ease;
+    }
+    
+    #result.error {
+      background: #fed7d7;
+      border-left-color: #f56565;
+      color: #742a2a;
+    }
+    
+    #result.success {
+      background: #c6f6d5;
+      border-left-color: #48bb78;
+      color: #22543d;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .watchlist-header {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #2d3748;
+    }
+    
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+    
+    thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    th {
+      text-align: left;
+      padding: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    th:last-child {
+      text-align: center;
+    }
+    
+    td {
+      padding: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #4a5568;
+    }
+    
+    td:last-child {
+      text-align: center;
+    }
+    
+    tbody tr {
+      transition: background-color 0.2s ease;
+    }
+    
+    tbody tr:hover {
+      background-color: #f7fafc;
+    }
+    
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .price {
+      font-weight: 600;
+      color: #48bb78;
+      font-size: 15px;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #a0aec0;
+      font-style: italic;
+    }
+    
+    @media (max-width: 640px) {
+      h1 { font-size: 32px; }
+      .card { padding: 24px 20px; }
+      th, td { padding: 12px 8px; font-size: 13px; }
+      .btn-delete { padding: 6px 12px; font-size: 12px; }
+    }
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <div class="container">
+    <div class="header">
+      <h1>📈 Stock Watchlist</h1>
+      <p class="hint" style="color: rgba(255,255,255,0.9);">Track your favorite stocks with real-time pricing from Massive API</p>
+    </div>
 
-  <form id="stock-form">
-    <label for="symbol">Ticker symbol</label>
-    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-    <button type="submit">Add to watchlist</button>
-  </form>
+    <div class="card">
+      <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
 
-  <div id="result"></div>
+      <form id="stock-form">
+        <label for="symbol">Ticker Symbol</label>
+        <input type="text" id="symbol" name="symbol" placeholder="e.g., AAPL, MSFT, GOOGL" required>
+        <button type="submit">Add to Watchlist</button>
+      </form>
 
-  <table id="watchlist-table">
-    <thead>
-      <tr>
-        <th>Symbol</th>
-        <th>Email</th>
-        <th>Latest price</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody id="watchlist-body"></tbody>
-  </table>
+      <div id="result"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="watchlist-header">Your Watchlist</h2>
+      <div class="table-container">
+        <table id="watchlist-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Email</th>
+              <th>Latest Price</th>
+              <th>Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="watchlist-body">
+            <tr><td colspan="5" class="empty-state">No stocks in your watchlist yet. Add one above!</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <script>
     const form = document.getElementById("stock-form");
@@ -50,28 +289,69 @@
         const resp = await fetch("/watchlist");
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
+          showResult("Error loading watchlist: " + (data.error || resp.statusText), "error");
           return;
         }
         watchlistBody.innerHTML = "";
-        data.forEach((row) => {
-          const tr = document.createElement("tr");
-          const price = row.latest_price !== null && row.latest_price !== undefined
-            ? Number(row.latest_price).toFixed(2)
-            : "-";
-          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td>${price}</td><td>${updated}</td>`;
-          watchlistBody.appendChild(tr);
-        });
+        if (data.length === 0) {
+          watchlistBody.innerHTML = '<tr><td colspan="5" class="empty-state">No stocks in your watchlist yet. Add one above!</td></tr>';
+        } else {
+          data.forEach((row) => {
+            const tr = document.createElement("tr");
+            const price = row.latest_price !== null && row.latest_price !== undefined
+              ? '$' + Number(row.latest_price).toFixed(2)
+              : "-";
+            const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
+            tr.innerHTML = `
+              <td><strong>${row.symbol}</strong></td>
+              <td>${row.email || "-"}</td>
+              <td class="price">${price}</td>
+              <td>${updated}</td>
+              <td><button class="btn-delete" onclick="deleteStock('${row.symbol}')">Delete</button></td>
+            `;
+            watchlistBody.appendChild(tr);
+          });
+        }
       } catch (err) {
-        resultEl.textContent = "Failed to load watchlist: " + err;
+        showResult("Failed to load watchlist: " + err, "error");
       }
+    }
+
+    async function deleteStock(symbol) {
+      if (!confirm(`Are you sure you want to remove ${symbol} from your watchlist?`)) {
+        return;
+      }
+      
+      showResult(`Removing ${symbol} from watchlist...`, "info");
+      
+      try {
+        const resp = await fetch(`/watchlist/${symbol}`, {
+          method: "DELETE"
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          showResult("Error: " + (data.error || resp.statusText), "error");
+          return;
+        }
+        showResult(`🗑️ Successfully removed ${symbol} from watchlist`, "success");
+        loadWatchlist();
+      } catch (err) {
+        showResult("Request failed: " + err, "error");
+      }
+    }
+
+    function showResult(message, type = "info") {
+      resultEl.textContent = message;
+      resultEl.className = "show " + type;
+      setTimeout(() => {
+        resultEl.classList.remove("show");
+      }, 5000);
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
+      const symbol = document.getElementById("symbol").value.trim().toUpperCase();
+      showResult("Adding " + symbol + " to watchlist...", "info");
 
       try {
         const resp = await fetch("/watchlist", {
@@ -81,14 +361,14 @@
         });
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          showResult("Error: " + (data.error || resp.statusText), "error");
           return;
         }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
+        showResult("✅ Successfully added " + data.symbol + " at $" + Number(data.latest_price).toFixed(2), "success");
         document.getElementById("symbol").value = "";
         loadWatchlist();
       } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+        showResult("Request failed: " + err, "error");
       }
     });
 
