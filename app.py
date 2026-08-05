@@ -28,6 +28,7 @@ _w = WorkspaceClient()
 
 TABLE_NAME = os.environ.get("MASSIVE_TABLE_NAME", "massive_records")
 WATCHLIST_TABLE_NAME = os.environ.get("WATCHLIST_TABLE_NAME", "watchlist")
+TICKER_DETAILS_TABLE_NAME = os.environ.get("TICKER_DETAILS_TABLE_NAME", "ticker_details")
 
 # Basic stock ticker shape check: 1-10 uppercase letters, with an optional
 # ".X" or ".XX" share-class suffix (e.g. "BRK.B"). This rejects obviously
@@ -58,6 +59,19 @@ def ensure_watchlist_table():
             latest_price NUMERIC,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (symbol, email)
+        )
+        """
+    )
+
+
+def ensure_ticker_details_table():
+    """Create the ticker_details table in Lakebase if it doesn't exist yet."""
+    lakebase.run_write(
+        f"""
+        CREATE TABLE IF NOT EXISTS {TICKER_DETAILS_TABLE_NAME} (
+            symbol TEXT PRIMARY KEY,
+            details JSONB NOT NULL,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """
     )
@@ -147,6 +161,100 @@ def get_watchlist():
         (email,),
     )
     return jsonify(rows)
+
+
+@app.route("/watchlist/<symbol>", methods=["DELETE"])
+def delete_from_watchlist(symbol):
+    """
+    Remove a stock symbol from the current user's watchlist.
+    """
+    ensure_watchlist_table()
+    email = _current_user_email()
+    symbol = symbol.strip().upper()
+    
+    lakebase.run_write(
+        f"DELETE FROM {WATCHLIST_TABLE_NAME} WHERE symbol = %s AND email = %s",
+        (symbol, email),
+    )
+    
+    return jsonify({"deleted": symbol, "email": email})
+
+
+@app.route("/ticker/<symbol>", methods=["GET"])
+def get_ticker_details(symbol):
+    """
+    Fetch detailed company information for a ticker symbol.
+    Caches results in Lakebase for 24 hours to reduce API calls.
+    """
+    import json as _json
+    from datetime import datetime, timedelta
+    
+    ensure_ticker_details_table()
+    symbol = symbol.strip().upper()
+    
+    if not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+    
+    # Check cache first
+    cached = lakebase.run_query(
+        f"SELECT details, fetched_at FROM {TICKER_DETAILS_TABLE_NAME} WHERE symbol = %s",
+        (symbol,),
+    )
+    
+    if cached:
+        row = cached[0]
+        fetched_at = row["fetched_at"]
+        # If cached data is less than 24 hours old, return it
+        if isinstance(fetched_at, str):
+            fetched_at = datetime.fromisoformat(fetched_at.replace('Z', '+00:00'))
+        if datetime.now(fetched_at.tzinfo) - fetched_at < timedelta(hours=24):
+            return jsonify(row["details"])
+    
+    # Fetch from API
+    client = MassiveClient()
+    try:
+        data = client.get_ticker_details(symbol)
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            return jsonify({"error": f"Unknown ticker symbol: {symbol}"}), 404
+        raise
+    
+    # Cache the result
+    lakebase.run_write(
+        f"""
+        INSERT INTO {TICKER_DETAILS_TABLE_NAME} (symbol, details, fetched_at)
+        VALUES (%s, %s, now())
+        ON CONFLICT (symbol) DO UPDATE
+            SET details = EXCLUDED.details,
+                fetched_at = EXCLUDED.fetched_at
+        """,
+        (symbol, _json.dumps(data)),
+    )
+    
+    return jsonify(data)
+
+
+@app.route("/ticker/<symbol>/news", methods=["GET"])
+def get_ticker_news(symbol):
+    """
+    Fetch recent news articles for a ticker symbol from Massive API.
+    Returns up to 5 recent news articles.
+    """
+    symbol = symbol.strip().upper()
+    
+    if not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+    
+    # Fetch from API
+    client = MassiveClient()
+    try:
+        data = client.get_ticker_news(symbol, limit=5)
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            return jsonify({"error": f"No news found for ticker: {symbol}"}), 404
+        raise
+    
+    return jsonify(data)
 
 
 @app.route("/watchlist", methods=["POST"])
