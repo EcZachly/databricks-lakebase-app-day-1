@@ -4,41 +4,590 @@
   <meta charset="UTF-8">
   <title>Massive Stock Watchlist</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 60px auto; color: #222; }
-    h1 { font-size: 20px; }
-    label { display: block; margin-top: 16px; font-weight: 600; }
-    input[type="text"] { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; cursor: pointer; }
-    #result { margin-top: 20px; white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 6px; min-height: 20px; }
-    .hint { color: #777; font-size: 13px; margin-top: 4px; }
-    table { width: 100%; margin-top: 24px; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-    th { font-size: 13px; color: #555; text-transform: uppercase; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      padding: 48px 24px;
+      color: #1f2937;
+    }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      animation: fadeIn 0.6s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .card {
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+      margin-bottom: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.2), 0 0 1px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      font-size: 42px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .hint {
+      color: #6b7280;
+      font-size: 15px;
+      line-height: 1.7;
+      margin-bottom: 32px;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-radius: 12px;
+      border-left: 4px solid #3b82f6;
+    }
+    
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    label {
+      display: block;
+      font-weight: 700;
+      color: #111827;
+      font-size: 15px;
+      margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 16px 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-size: 17px;
+      transition: all 0.3s ease;
+      background: #f9fafb;
+      font-family: inherit;
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: white;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+      transform: translateY(-1px);
+    }
+    
+    input[type="text"]::placeholder {
+      color: #9ca3af;
+    }
+    
+    button {
+      padding: 16px 32px;
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #0ea5e9 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+      letter-spacing: 0.3px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transition: left 0.5s;
+    }
+    
+    button:hover::before {
+      left: 100%;
+    }
+    
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 28px rgba(59, 130, 246, 0.6);
+    }
+    
+    button:active {
+      transform: translateY(-1px);
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    #result {
+      padding: 18px 22px;
+      border-radius: 12px;
+      font-size: 15px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      margin-top: 20px;
+      animation: slideDown 0.3s ease-out;
+      font-weight: 500;
+    }
+    
+    #result.success {
+      background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+      border-left: 4px solid #10b981;
+      color: #065f46;
+    }
+    
+    #result.error {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      border-left: 4px solid #ef4444;
+      color: #991b1b;
+    }
+    
+    #result.loading {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+    }
+    
+    #result:empty {
+      display: none;
+    }
+    
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 16px;
+      background: white;
+    }
+    
+    thead {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #0ea5e9 100%);
+    }
+    
+    th {
+      padding: 18px 20px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 800;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    th:first-child {
+      border-top-left-radius: 16px;
+      padding-left: 28px;
+    }
+    
+    th:last-child {
+      border-top-right-radius: 16px;
+      padding-right: 28px;
+      text-align: center;
+    }
+    
+    tbody tr {
+      transition: all 0.2s ease;
+      background: white;
+    }
+    
+    tbody tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    
+    tbody tr:hover {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      transform: scale(1.008);
+    }
+    
+    td {
+      padding: 18px 20px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #374151;
+      font-size: 15px;
+    }
+    
+    td:first-child {
+      padding-left: 28px;
+      font-weight: 700;
+      color: #111827;
+    }
+    
+    td:last-child {
+      padding-right: 28px;
+      text-align: center;
+    }
+    
+    tbody tr:last-child td:first-child {
+      border-bottom-left-radius: 16px;
+    }
+    
+    tbody tr:last-child td:last-child {
+      border-bottom-right-radius: 16px;
+    }
+    
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .price {
+      font-weight: 700;
+      color: #10b981;
+      font-size: 16px;
+    }
+    
+    .delete-btn {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+    
+    .delete-btn:hover {
+      background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
+    }
+    
+    .delete-btn:active {
+      transform: translateY(0);
+    }
+    
+    .delete-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .news-btn {
+      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+      margin-right: 8px;
+    }
+    
+    .news-btn:hover {
+      background: linear-gradient(135deg, #6d28d9 0%, #9333ea 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.5);
+    }
+    
+    .news-btn:active {
+      transform: translateY(0);
+    }
+    
+    .news-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      animation: fadeIn 0.3s ease-out;
+    }
+    
+    .modal-content {
+      background: white;
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 20px;
+      width: 90%;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow: hidden;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+      animation: slideDown 0.3s ease-out;
+    }
+    
+    .modal-header {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #0ea5e9 100%);
+      color: white;
+      padding: 24px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .modal-header h2 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+    }
+    
+    .close {
+      color: white;
+      font-size: 32px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+      line-height: 1;
+    }
+    
+    .close:hover {
+      transform: scale(1.1);
+    }
+    
+    .modal-body {
+      padding: 32px;
+      max-height: calc(80vh - 100px);
+      overflow-y: auto;
+    }
+    
+    .news-item {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 20px 0;
+      transition: all 0.2s ease;
+    }
+    
+    .news-item:last-child {
+      border-bottom: none;
+    }
+    
+    .news-item:hover {
+      background: #f9fafb;
+      margin: 0 -16px;
+      padding: 20px 16px;
+      border-radius: 12px;
+    }
+    
+    .news-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    
+    .news-title a {
+      color: #111827;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    .news-title a:hover {
+      color: #3b82f6;
+    }
+    
+    .news-meta {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+    
+    .news-description {
+      font-size: 15px;
+      color: #374151;
+      line-height: 1.6;
+    }
+    
+    .news-image {
+      width: 100%;
+      max-width: 300px;
+      border-radius: 12px;
+      margin-top: 12px;
+    }
+    
+    .loading-spinner {
+      text-align: center;
+      padding: 40px;
+      font-size: 18px;
+      color: #6b7280;
+    }
+    
+    .watchlist-section {
+      margin-top: 0;
+    }
+    
+    .watchlist-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #111827;
+      margin-bottom: 20px;
+      letter-spacing: -0.01em;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+      font-size: 16px;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    @media (max-width: 768px) {
+      body {
+        padding: 24px 16px;
+      }
+      
+      .card {
+        padding: 28px 24px;
+        border-radius: 16px;
+      }
+      
+      h1 {
+        font-size: 32px;
+      }
+      
+      .watchlist-title {
+        font-size: 24px;
+      }
+      
+      table {
+        font-size: 13px;
+      }
+      
+      th, td {
+        padding: 14px 12px;
+      }
+      
+      th:first-child, td:first-child {
+        padding-left: 16px;
+      }
+      
+      th:last-child, td:last-child {
+        padding-right: 16px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 28px;
+      }
+      
+      .hint {
+        font-size: 14px;
+      }
+      
+      button {
+        padding: 14px 24px;
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <div class="container">
+    <div class="card">
+      <h1>📈 Stock Watchlist</h1>
+      <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
 
-  <form id="stock-form">
-    <label for="symbol">Ticker symbol</label>
-    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-    <button type="submit">Add to watchlist</button>
-  </form>
+      <form id="stock-form">
+        <div>
+          <label for="symbol">Ticker Symbol</label>
+          <input type="text" id="symbol" name="symbol" placeholder="e.g., AAPL, TSLA, MSFT" required>
+        </div>
+        <button type="submit">✨ Add to Watchlist</button>
+      </form>
 
-  <div id="result"></div>
+      <div id="result"></div>
+    </div>
 
-  <table id="watchlist-table">
-    <thead>
-      <tr>
-        <th>Symbol</th>
-        <th>Email</th>
-        <th>Latest price</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody id="watchlist-body"></tbody>
-  </table>
+    <div class="card watchlist-section">
+      <h2 class="watchlist-title">📊 Your Watchlist</h2>
+      <div class="table-wrapper">
+        <table id="watchlist-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Email</th>
+              <th>Latest Price</th>
+              <th>Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="watchlist-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- News Modal -->
+  <div id="news-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="news-modal-title">📰 News</h2>
+        <span class="close" onclick="document.getElementById('news-modal').style.display='none'">&times;</span>
+      </div>
+      <div class="modal-body" id="news-modal-body">
+        <!-- News items will be loaded here -->
+      </div>
+    </div>
+  </div>
 
   <script>
     const form = document.getElementById("stock-form");
@@ -51,27 +600,82 @@
         const data = await resp.json();
         if (!resp.ok) {
           resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
+          resultEl.className = "error";
           return;
         }
         watchlistBody.innerHTML = "";
-        data.forEach((row) => {
-          const tr = document.createElement("tr");
-          const price = row.latest_price !== null && row.latest_price !== undefined
-            ? Number(row.latest_price).toFixed(2)
-            : "-";
-          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td>${price}</td><td>${updated}</td>`;
-          watchlistBody.appendChild(tr);
-        });
+        if (data.length === 0) {
+          watchlistBody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="empty-state-icon">📊</div><div>No stocks in your watchlist yet. Add one above!</div></td></tr>';
+        } else {
+          data.forEach((row) => {
+            const tr = document.createElement("tr");
+            const price = row.latest_price !== null && row.latest_price !== undefined
+              ? "$" + Number(row.latest_price).toFixed(2)
+              : "-";
+            const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
+            
+            const newsBtn = document.createElement("button");
+            newsBtn.className = "news-btn";
+            newsBtn.textContent = "📰 News";
+            newsBtn.onclick = () => fetchNews(row.symbol);
+            
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-btn";
+            deleteBtn.textContent = "🗑️ Remove";
+            deleteBtn.onclick = () => deleteFromWatchlist(row.symbol);
+            
+            tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td class="price">${price}</td><td>${updated}</td>`;
+            const actionCell = document.createElement("td");
+            actionCell.appendChild(newsBtn);
+            actionCell.appendChild(deleteBtn);
+            tr.appendChild(actionCell);
+            
+            watchlistBody.appendChild(tr);
+          });
+        }
       } catch (err) {
         resultEl.textContent = "Failed to load watchlist: " + err;
+        resultEl.className = "error";
+      }
+    }
+
+    async function deleteFromWatchlist(symbol) {
+      if (!confirm(`Are you sure you want to remove ${symbol} from your watchlist?`)) {
+        return;
+      }
+      
+      resultEl.textContent = `🔄 Removing ${symbol} from watchlist...`;
+      resultEl.className = "loading";
+
+      try {
+        const resp = await fetch("/watchlist", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          resultEl.textContent = "❌ Error: " + (data.error || resp.statusText);
+          resultEl.className = "error";
+          return;
+        }
+        resultEl.textContent = `✅ Successfully removed ${symbol} from watchlist`;
+        resultEl.className = "success";
+        loadWatchlist();
+      } catch (err) {
+        resultEl.textContent = "❌ Request failed: " + err;
+        resultEl.className = "error";
       }
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
+      const submitButton = form.querySelector('button[type="submit"]');
+      
+      resultEl.textContent = "🔄 Adding " + symbol + " to watchlist...";
+      resultEl.className = "loading";
+      submitButton.disabled = true;
 
       try {
         const resp = await fetch("/watchlist", {
@@ -81,16 +685,90 @@
         });
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          resultEl.textContent = "❌ Error: " + (data.error || resp.statusText);
+          resultEl.className = "error";
+          submitButton.disabled = false;
           return;
         }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
+        resultEl.textContent = "✅ Successfully added " + data.symbol + " at $" + Number(data.latest_price).toFixed(2);
+        resultEl.className = "success";
         document.getElementById("symbol").value = "";
+        submitButton.disabled = false;
         loadWatchlist();
       } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+        resultEl.textContent = "❌ Request failed: " + err;
+        resultEl.className = "error";
+        submitButton.disabled = false;
       }
     });
+
+    async function fetchNews(symbol) {
+      const modal = document.getElementById("news-modal");
+      const modalTitle = document.getElementById("news-modal-title");
+      const modalBody = document.getElementById("news-modal-body");
+      
+      modal.style.display = "block";
+      modalTitle.textContent = `📰 News for ${symbol}`;
+      modalBody.innerHTML = '<div class="loading-spinner">🔄 Loading news...</div>';
+      
+      try {
+        const resp = await fetch(`/watchlist/news/${symbol}`);
+        const data = await resp.json();
+        
+        if (!resp.ok) {
+          modalBody.innerHTML = `<div class="error">❌ Error: ${data.error || resp.statusText}</div>`;
+          return;
+        }
+        
+        if (!data.news || data.news.length === 0) {
+          modalBody.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📰</div><div>No news found for this ticker.</div></div>';
+          return;
+        }
+        
+        modalBody.innerHTML = "";
+        data.news.forEach((item) => {
+          const newsItem = document.createElement("div");
+          newsItem.className = "news-item";
+          
+          const title = document.createElement("div");
+          title.className = "news-title";
+          title.innerHTML = `<a href="${item.article_url || '#'}" target="_blank">${item.title || 'Untitled'}</a>`;
+          
+          const meta = document.createElement("div");
+          meta.className = "news-meta";
+          const publishedDate = item.published_utc ? new Date(item.published_utc).toLocaleString() : 'Unknown date';
+          meta.textContent = `${item.author || 'Unknown author'} • ${publishedDate}`;
+          
+          const description = document.createElement("div");
+          description.className = "news-description";
+          description.textContent = item.description || 'No description available.';
+          
+          newsItem.appendChild(title);
+          newsItem.appendChild(meta);
+          newsItem.appendChild(description);
+          
+          if (item.image_url) {
+            const img = document.createElement("img");
+            img.src = item.image_url;
+            img.className = "news-image";
+            img.alt = item.title || 'News image';
+            newsItem.appendChild(img);
+          }
+          
+          modalBody.appendChild(newsItem);
+        });
+      } catch (err) {
+        modalBody.innerHTML = `<div class="error">❌ Failed to load news: ${err}</div>`;
+      }
+    }
+    
+    // Close modal when clicking the X or outside the modal
+    window.onclick = function(event) {
+      const modal = document.getElementById("news-modal");
+      if (event.target === modal) {
+        modal.style.display = "none";
+      }
+    }
 
     loadWatchlist();
   </script>
