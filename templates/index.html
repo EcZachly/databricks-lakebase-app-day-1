@@ -17,28 +17,39 @@
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <div class="container">
+    <div class="header">
+      <h1>📈 Stock Watchlist</h1>
+    </div>
 
-  <form id="stock-form">
-    <label for="symbol">Ticker symbol</label>
-    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-    <button type="submit">Add to watchlist</button>
-  </form>
+    <div class="card">
+      <p class="hint">💡 Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
 
-  <div id="result"></div>
+      <form id="stock-form">
+        <label for="symbol">🎯 Ticker Symbol</label>
+        <input type="text" id="symbol" name="symbol" placeholder="e.g., AAPL, TSLA, GOOGL" required>
+        <button type="submit">➕ Add to Watchlist</button>
+      </form>
 
-  <table id="watchlist-table">
-    <thead>
-      <tr>
-        <th>Symbol</th>
-        <th>Email</th>
-        <th>Latest price</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody id="watchlist-body"></tbody>
-  </table>
+      <div id="result" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <div class="table-container">
+        <table id="watchlist-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Email</th>
+              <th>Latest Price</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody id="watchlist-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <script>
     const form = document.getElementById("stock-form");
@@ -71,7 +82,8 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
+      resultEl.style.display = "flex";
+      resultEl.textContent = "⏳ Adding to watchlist...";
 
       try {
         const resp = await fetch("/watchlist", {
@@ -81,14 +93,17 @@
         });
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          resultEl.textContent = "❌ Error: " + (data.error || resp.statusText);
           return;
         }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
+        resultEl.textContent = "✅ Successfully added " + data.symbol + " at $" + Number(data.latest_price).toFixed(2);
         document.getElementById("symbol").value = "";
         loadWatchlist();
+        setTimeout(() => {
+          resultEl.style.display = "none";
+        }, 5000);
       } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+        resultEl.textContent = "❌ Request failed: " + err;
       }
     });
 
