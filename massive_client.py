@@ -85,3 +85,128 @@ class MassiveClient:
         """
         data = self.get(f"/v2/aggs/ticker/{symbol}/prev")
         return data
+
+    def get_ticker_details(self, symbol: str) -> dict:
+        """
+        Fetch comprehensive company details and fundamentals for a ticker.
+        Returns company name, description, market cap, industry classification,
+        homepage, logo URL, and more.
+        """
+        data = self.get(f"/v3/reference/tickers/{symbol}")
+        return data
+
+    def get_historical_aggregates(
+        self,
+        symbol: str,
+        multiplier: int = 1,
+        timespan: str = "day",
+        from_date: str = None,
+        to_date: str = None,
+        limit: int = 120,
+    ) -> dict:
+        """
+        Fetch historical OHLC aggregate bars for a ticker.
+        
+        Args:
+            symbol: Stock ticker symbol
+            multiplier: Size of the timespan multiplier (e.g., 1 for 1 day, 5 for 5 minutes)
+            timespan: Size of time window: minute, hour, day, week, month, quarter, year
+            from_date: Start date (YYYY-MM-DD format)
+            to_date: End date (YYYY-MM-DD format)
+            limit: Max number of results (default 120, max 50000)
+        
+        Returns OHLC data with volume, VWAP, and transaction count.
+        """
+        params = {"limit": limit}
+        if from_date and to_date:
+            path = f"/v2/aggs/ticker/{symbol}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
+        else:
+            # Use prev endpoint for latest bar if no date range specified
+            path = f"/v2/aggs/ticker/{symbol}/prev"
+            params = {}
+        
+        data = self.get(path, params=params)
+        return data
+
+    def get_technical_indicator(
+        self,
+        symbol: str,
+        indicator: str = "sma",
+        timespan: str = "day",
+        window: int = 50,
+        series_type: str = "close",
+        limit: int = 120,
+    ) -> dict:
+        """
+        Fetch technical indicator data for a ticker.
+        
+        Args:
+            symbol: Stock ticker symbol
+            indicator: Type of indicator (sma, ema, macd, rsi)
+            timespan: day, hour, minute, etc.
+            window: Window size for the indicator
+            series_type: Price to use (close, open, high, low)
+            limit: Max number of results
+        
+        Supported indicators:
+        - sma: Simple Moving Average
+        - ema: Exponential Moving Average
+        - macd: Moving Average Convergence Divergence
+        - rsi: Relative Strength Index
+        """
+        params = {
+            "timespan": timespan,
+            "window": window,
+            "series_type": series_type,
+            "limit": limit,
+        }
+        data = self.get(f"/v1/indicators/{indicator}/{symbol}", params=params)
+        return data
+
+    def get_market_news(
+        self,
+        symbol: str = None,
+        limit: int = 10,
+        order: str = "desc",
+    ) -> dict:
+        """
+        Fetch market news articles, optionally filtered by ticker symbol.
+        
+        Args:
+            symbol: Optional ticker to filter news
+            limit: Max number of articles (default 10, max 1000)
+            order: Sort order (desc or asc)
+        
+        Returns news with title, description, URL, author, published date,
+        and sentiment analysis (if available).
+        """
+        params = {"limit": limit, "order": order}
+        if symbol:
+            params["ticker"] = symbol
+        
+        data = self.get("/v2/reference/news", params=params)
+        return data
+
+    def get_financials(
+        self,
+        symbol: str,
+        timeframe: str = "quarterly",
+        limit: int = 10,
+    ) -> dict:
+        """
+        Fetch financial statements for a ticker.
+        
+        Args:
+            symbol: Stock ticker symbol
+            timeframe: quarterly or annual
+            limit: Max number of periods to return
+        
+        Returns income statement, balance sheet, and cash flow data.
+        """
+        params = {
+            "ticker": symbol,
+            "timeframe": timeframe,
+            "limit": limit,
+        }
+        data = self.get("/vX/reference/financials", params=params)
+        return data
