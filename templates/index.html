@@ -4,74 +4,475 @@
   <meta charset="UTF-8">
   <title>Massive Stock Watchlist</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 60px auto; color: #222; }
-    h1 { font-size: 20px; }
-    label { display: block; margin-top: 16px; font-weight: 600; }
-    input[type="text"] { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; cursor: pointer; }
-    #result { margin-top: 20px; white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 6px; min-height: 20px; }
-    .hint { color: #777; font-size: 13px; margin-top: 4px; }
-    table { width: 100%; margin-top: 24px; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-    th { font-size: 13px; color: #555; text-transform: uppercase; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #2d3748;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .hint {
+      color: #718096;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+      padding: 12px;
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      border-radius: 4px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      background: #f7fafc;
+      color: #2d3748;
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    input[type="text"]::placeholder {
+      color: #a0aec0;
+    }
+    
+    button {
+      margin-top: 20px;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+    }
+    
+    #result {
+      margin-top: 24px;
+      padding: 16px 20px;
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+      border-radius: 8px;
+      color: #2f855a;
+      font-size: 14px;
+      font-weight: 500;
+      min-height: 20px;
+      display: none;
+      animation: slideIn 0.3s ease;
+    }
+    
+    #result:empty {
+      display: none;
+    }
+    
+    #result.show {
+      display: block;
+    }
+    
+    #result.error {
+      background: #fff5f5;
+      border-color: #fc8181;
+      color: #c53030;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .table-container {
+      margin-top: 48px;
+      overflow-x: auto;
+    }
+    
+    .table-header {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 16px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    th {
+      text-align: left;
+      padding: 16px;
+      font-size: 12px;
+      font-weight: 700;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    td {
+      text-align: left;
+      padding: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #2d3748;
+      font-size: 14px;
+    }
+    
+    tbody tr {
+      transition: background-color 0.2s ease;
+    }
+    
+    tbody tr:hover {
+      background-color: #f7fafc;
+    }
+    
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    
+    tbody tr td:nth-child(3) {
+      font-weight: 600;
+      color: #38a169;
+    }
+    
+    .delete-btn {
+      margin: 0;
+      padding: 8px 16px;
+      font-size: 13px;
+      background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+      box-shadow: 0 2px 6px rgba(245, 101, 101, 0.4);
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    
+    .delete-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 101, 101, 0.6);
+    }
+    
+    .delete-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 4px rgba(245, 101, 101, 0.4);
+    }
+    
+    /* Stock Cards Layout */
+    .stocks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+      margin-top: 24px;
+    }
+    
+    .stock-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .stock-card:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      transform: translateY(-4px);
+    }
+    
+    .stock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+    
+    .stock-symbol {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 4px;
+    }
+    
+    .company-name {
+      font-size: 13px;
+      color: #718096;
+      margin-bottom: 8px;
+    }
+    
+    .stock-price {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 4px;
+    }
+    
+    .price-change {
+      font-size: 14px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    
+    .price-change.positive {
+      color: #38a169;
+      background: #f0fff4;
+    }
+    
+    .price-change.negative {
+      color: #e53e3e;
+      background: #fff5f5;
+    }
+    
+    .stock-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+      padding: 16px 0;
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .metric {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .metric-label {
+      font-size: 11px;
+      color: #a0aec0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    
+    .metric-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    .stock-info {
+      font-size: 12px;
+      color: #718096;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+    
+    .stock-badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: #edf2f7;
+      color: #4a5568;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+    
+    .stock-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+    }
+    
+    .card-delete-btn {
+      margin: 0;
+      padding: 6px 16px;
+      font-size: 12px;
+      background: transparent;
+      color: #e53e3e;
+      border: 1px solid #e53e3e;
+      box-shadow: none;
+      text-transform: none;
+    }
+    
+    .card-delete-btn:hover {
+      background: #fff5f5;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        padding: 24px;
+      }
+      
+      h1 {
+        font-size: 24px;
+      }
+      
+      .stocks-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      table {
+        font-size: 12px;
+      }
+      
+      th, td {
+        padding: 12px 8px;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <div class="container">
+    <h1>📈 Stock Watchlist</h1>
+    <p class="hint">Enter a ticker symbol to fetch comprehensive stock data including company info, real-time prices, trading volume, market cap, and more from the Massive API.</p>
 
-  <form id="stock-form">
-    <label for="symbol">Ticker symbol</label>
-    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-    <button type="submit">Add to watchlist</button>
-  </form>
+    <form id="stock-form">
+      <label for="symbol">Ticker Symbol</label>
+      <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
+      <button type="submit">Add to Watchlist</button>
+    </form>
 
-  <div id="result"></div>
+    <div id="result"></div>
 
-  <table id="watchlist-table">
-    <thead>
-      <tr>
-        <th>Symbol</th>
-        <th>Email</th>
-        <th>Latest price</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody id="watchlist-body"></tbody>
-  </table>
+    <div class="table-container">
+      <div class="table-header">Your Watchlist</div>
+      <div id="watchlist-grid" class="stocks-grid"></div>
+    </div>
+  </div>
 
   <script>
     const form = document.getElementById("stock-form");
     const resultEl = document.getElementById("result");
-    const watchlistBody = document.getElementById("watchlist-body");
+    const watchlistGrid = document.getElementById("watchlist-grid");
+
+    function showMessage(text, isError = false) {
+      resultEl.textContent = text;
+      resultEl.className = isError ? 'error show' : 'show';
+    }
+
+    async function deleteStock(symbol) {
+      if (!confirm(`Are you sure you want to remove ${symbol} from your watchlist?`)) {
+        return;
+      }
+
+      try {
+        const resp = await fetch(`/watchlist/${symbol}`, {
+          method: "DELETE",
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          showMessage("Error deleting: " + (data.error || resp.statusText), true);
+          return;
+        }
+        showMessage(`✓ Removed ${symbol} from watchlist`, false);
+        loadWatchlist();
+      } catch (err) {
+        showMessage("Delete failed: " + err, true);
+      }
+    }
 
     async function loadWatchlist() {
       try {
         const resp = await fetch("/watchlist");
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
+          showMessage("Error loading watchlist: " + (data.error || resp.statusText), true);
           return;
         }
         watchlistBody.innerHTML = "";
         data.forEach((row) => {
           const tr = document.createElement("tr");
           const price = row.latest_price !== null && row.latest_price !== undefined
-            ? Number(row.latest_price).toFixed(2)
+            ? "$" + Number(row.latest_price).toFixed(2)
             : "-";
           const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td>${price}</td><td>${updated}</td>`;
+          tr.innerHTML = `
+            <td><strong>${row.symbol}</strong></td>
+            <td>${row.email || "-"}</td>
+            <td>${price}</td>
+            <td>${updated}</td>
+            <td><button class="delete-btn" onclick="deleteStock('${row.symbol}')">Delete</button></td>
+          `;
           watchlistBody.appendChild(tr);
         });
       } catch (err) {
-        resultEl.textContent = "Failed to load watchlist: " + err;
+        showMessage("Failed to load watchlist: " + err, true);
       }
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
+      showMessage("Adding to watchlist...", false);
 
       try {
         const resp = await fetch("/watchlist", {
@@ -81,14 +482,16 @@
         });
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          showMessage("Error: " + (data.error || resp.statusText), true);
           return;
         }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
+        const companyInfo = data.company_name ? ` (${data.company_name})` : "";
+        const changeInfo = data.change_percent ? ` ${data.change_percent >= 0 ? '+' : ''}${data.change_percent.toFixed(2)}%` : "";
+        showMessage(`✓ Added ${data.symbol}${companyInfo} at ${Number(data.current_price).toFixed(2)}${changeInfo}`, false);
         document.getElementById("symbol").value = "";
         loadWatchlist();
       } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+        showMessage("Request failed: " + err, true);
       }
     });
 

@@ -85,3 +85,108 @@ class MassiveClient:
         """
         data = self.get(f"/v2/aggs/ticker/{symbol}/prev")
         return data
+
+    def get_ticker_details(self, symbol: str) -> dict:
+        """
+        Fetch detailed company information for a ticker symbol.
+        Includes company name, description, market cap, sector, industry, etc.
+        
+        Endpoint: /v3/reference/tickers/{symbol}
+        """
+        try:
+            data = self.get(f"/v3/reference/tickers/{symbol}")
+            return data
+        except requests.HTTPError as e:
+            # If v3 endpoint not available, try v2
+            if e.response.status_code == 404:
+                data = self.get(f"/v2/reference/tickers/{symbol}")
+                return data
+            raise
+
+    def get_snapshot(self, symbol: str) -> dict:
+        """
+        Fetch real-time snapshot data for a ticker.
+        Includes current day's OHLC, volume, previous close, and more.
+        
+        Endpoint: /v2/snapshot/locale/us/markets/stocks/tickers/{symbol}
+        """
+        data = self.get(f"/v2/snapshot/locale/us/markets/stocks/tickers/{symbol}")
+        return data
+
+    def get_rich_stock_data(self, symbol: str) -> dict:
+        """
+        Fetch comprehensive stock data by combining multiple API calls.
+        Returns a unified dictionary with:
+        - Company details (name, description, market cap, sector)
+        - Current trading data (price, volume, day range)
+        - Previous close data
+        - Calculated metrics (change %, day high/low)
+        
+        This makes 2-3 API calls but provides a complete picture.
+        """
+        result = {"symbol": symbol}
+        
+        # Get ticker details (company info)
+        try:
+            details = self.get_ticker_details(symbol)
+            if "results" in details:
+                ticker_data = details["results"]
+                result["company_name"] = ticker_data.get("name")
+                result["description"] = ticker_data.get("description")
+                result["market_cap"] = ticker_data.get("market_cap")
+                result["sector"] = ticker_data.get("sic_description") or ticker_data.get("sector")
+                result["industry"] = ticker_data.get("industry")
+                result["primary_exchange"] = ticker_data.get("primary_exchange")
+                result["locale"] = ticker_data.get("locale")
+                result["currency"] = ticker_data.get("currency_name")
+                result["homepage_url"] = ticker_data.get("homepage_url")
+                result["total_employees"] = ticker_data.get("total_employees")
+        except Exception:
+            # If details API fails, continue without company info
+            pass
+        
+        # Get snapshot (real-time trading data)
+        try:
+            snapshot = self.get_snapshot(symbol)
+            if "ticker" in snapshot:
+                ticker_snap = snapshot["ticker"]
+                
+                # Current day data
+                day = ticker_snap.get("day", {})
+                result["current_price"] = day.get("c")  # Close/current
+                result["open_price"] = day.get("o")
+                result["high_price"] = day.get("h")
+                result["low_price"] = day.get("l")
+                result["volume"] = day.get("v")
+                result["volume_weighted_price"] = day.get("vw")
+                
+                # Previous close data
+                prev = ticker_snap.get("prevDay", {})
+                result["prev_close"] = prev.get("c")
+                result["prev_open"] = prev.get("o")
+                result["prev_high"] = prev.get("h")
+                result["prev_low"] = prev.get("l")
+                result["prev_volume"] = prev.get("v")
+                
+                # Calculate change
+                if result.get("current_price") and result.get("prev_close"):
+                    change = result["current_price"] - result["prev_close"]
+                    change_pct = (change / result["prev_close"]) * 100
+                    result["change"] = change
+                    result["change_percent"] = change_pct
+                
+                # Additional metrics
+                result["updated_timestamp"] = ticker_snap.get("updated")
+        except Exception:
+            # If snapshot fails, fall back to previous close
+            prev_data = self.get_latest_price(symbol)
+            if "results" in prev_data and prev_data["results"]:
+                prev_bar = prev_data["results"][0]
+                result["current_price"] = prev_bar.get("c")
+                result["open_price"] = prev_bar.get("o")
+                result["high_price"] = prev_bar.get("h")
+                result["low_price"] = prev_bar.get("l")
+                result["volume"] = prev_bar.get("v")
+                result["volume_weighted_price"] = prev_bar.get("vw")
+        
+        return result

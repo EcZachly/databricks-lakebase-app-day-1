@@ -55,7 +55,33 @@ def ensure_watchlist_table():
         CREATE TABLE IF NOT EXISTS {WATCHLIST_TABLE_NAME} (
             symbol TEXT NOT NULL,
             email TEXT NOT NULL,
-            latest_price NUMERIC,
+            
+            -- Company Info
+            company_name TEXT,
+            description TEXT,
+            sector TEXT,
+            industry TEXT,
+            market_cap NUMERIC,
+            primary_exchange TEXT,
+            homepage_url TEXT,
+            
+            -- Current Trading Data
+            current_price NUMERIC,
+            open_price NUMERIC,
+            high_price NUMERIC,
+            low_price NUMERIC,
+            volume BIGINT,
+            volume_weighted_price NUMERIC,
+            
+            -- Previous Close Data
+            prev_close NUMERIC,
+            prev_volume BIGINT,
+            
+            -- Calculated Metrics
+            change NUMERIC,
+            change_percent NUMERIC,
+            
+            -- Metadata
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (symbol, email)
         )
@@ -138,12 +164,22 @@ def sync_from_massive():
 
 @app.route("/watchlist", methods=["GET"])
 def get_watchlist():
-    """Return the current user's watchlist symbols, with their last known price."""
+    """Return the current user's watchlist with all rich stock data."""
     ensure_watchlist_table()
     email = _current_user_email()
     rows = lakebase.run_query(
-        f"SELECT symbol, email, latest_price, updated_at FROM {WATCHLIST_TABLE_NAME} "
-        f"WHERE email = %s ORDER BY symbol ASC",
+        f"""
+        SELECT 
+            symbol, email,
+            company_name, description, sector, industry, market_cap, primary_exchange, homepage_url,
+            current_price, open_price, high_price, low_price, volume, volume_weighted_price,
+            prev_close, prev_volume,
+            change, change_percent,
+            updated_at
+        FROM {WATCHLIST_TABLE_NAME}
+        WHERE email = %s 
+        ORDER BY symbol ASC
+        """,
         (email,),
     )
     return jsonify(rows)
