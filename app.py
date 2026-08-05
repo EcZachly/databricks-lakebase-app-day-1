@@ -28,6 +28,7 @@ _w = WorkspaceClient()
 
 TABLE_NAME = os.environ.get("MASSIVE_TABLE_NAME", "massive_records")
 WATCHLIST_TABLE_NAME = os.environ.get("WATCHLIST_TABLE_NAME", "watchlist")
+NEWS_TABLE_NAME = os.environ.get("NEWS_TABLE_NAME", "ticker_news")
 
 # Basic stock ticker shape check: 1-10 uppercase letters, with an optional
 # ".X" or ".XX" share-class suffix (e.g. "BRK.B"). This rejects obviously
@@ -58,6 +59,24 @@ def ensure_watchlist_table():
             latest_price NUMERIC,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             PRIMARY KEY (symbol, email)
+        )
+        """
+    )
+
+
+def ensure_news_table():
+    """Create the ticker news table in Lakebase if it doesn't exist yet."""
+    lakebase.run_write(
+        f"""
+        CREATE TABLE IF NOT EXISTS {NEWS_TABLE_NAME} (
+            id SERIAL PRIMARY KEY,
+            symbol TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            url TEXT,
+            published_at TIMESTAMPTZ,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE(symbol, url)
         )
         """
     )
@@ -195,6 +214,95 @@ def add_to_watchlist():
     )
 
     return jsonify({"symbol": symbol, "email": email, "latest_price": price})
+
+
+@app.route("/watchlist/<symbol>", methods=["DELETE"])
+def delete_from_watchlist(symbol):
+    """
+    Remove a symbol from the current user's watchlist.
+    """
+    ensure_watchlist_table()
+    email = _current_user_email()
+    symbol = symbol.strip().upper() if isinstance(symbol, str) else ""
+
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    lakebase.run_write(
+        f"DELETE FROM {WATCHLIST_TABLE_NAME} WHERE symbol = %s AND email = %s",
+        (symbol, email),
+    )
+
+    return jsonify({"symbol": symbol, "email": email, "deleted": True})
+
+
+@app.route("/news/<symbol>", methods=["GET"])
+def get_ticker_news(symbol):
+    """
+    Retrieve stored news for a ticker symbol from the database.
+    """
+    ensure_news_table()
+    symbol = symbol.strip().upper() if isinstance(symbol, str) else ""
+
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    rows = lakebase.run_query(
+        f"SELECT id, symbol, title, description, url, published_at, fetched_at "
+        f"FROM {NEWS_TABLE_NAME} WHERE symbol = %s ORDER BY published_at DESC LIMIT 20",
+        (symbol,),
+    )
+    return jsonify(rows)
+
+
+@app.route("/news/<symbol>/fetch", methods=["POST"])
+def fetch_ticker_news(symbol):
+    """
+    Fetch latest news for a ticker from Massive API and store in database.
+    """
+    ensure_news_table()
+    symbol = symbol.strip().upper() if isinstance(symbol, str) else ""
+
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    client = MassiveClient()
+    try:
+        # Fetch news from Massive API
+        news_data = client.get_ticker_news(symbol)
+    except requests.HTTPError as e:
+        return jsonify({"error": f"Failed to fetch news for {symbol}: {str(e)}"}), 400
+
+    # Store news in database
+    stored_count = 0
+    if isinstance(news_data, dict) and "results" in news_data:
+        news_items = news_data.get("results", [])
+        for item in news_items:
+            try:
+                lakebase.run_write(
+                    f"""
+                    INSERT INTO {NEWS_TABLE_NAME} (symbol, title, description, url, published_at, fetched_at)
+                    VALUES (%s, %s, %s, %s, %s, now())
+                    ON CONFLICT (symbol, url) DO UPDATE
+                        SET title = EXCLUDED.title,
+                            description = EXCLUDED.description,
+                            published_at = EXCLUDED.published_at,
+                            fetched_at = now()
+                    """,
+                    (
+                        symbol,
+                        item.get("title", ""),
+                        item.get("description", ""),
+                        item.get("url", item.get("article_url", "")),
+                        item.get("published_utc", item.get("published_at", None)),
+                    ),
+                )
+                stored_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to store news item: {e}")
+                continue
+
+    return jsonify({"symbol": symbol, "fetched": len(news_items) if 'news_items' in locals() else 0, "stored": stored_count})
 
 
 def _extract_latest_price(data: dict) -> float | None:

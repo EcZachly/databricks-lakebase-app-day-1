@@ -8,18 +8,26 @@ Usage:
 """
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import workspace
+from databricks.sdk.errors import ResourceAlreadyExists
 import getpass
 
 w = WorkspaceClient()
 
-w.secrets.create_scope(scope="massive")
+try:
+    w.secrets.create_scope(scope="massive")
+except ResourceAlreadyExists:
+    pass  # Scope already exists, continue to update secrets
+
 w.secrets.put_secret(
     scope="massive",
     key="api-key",
     string_value=getpass.getpass("Paste your Massive API key: ")
 )
 
-w.secrets.create_scope(scope="database")
+try:
+    w.secrets.create_scope(scope="database")
+except ResourceAlreadyExists:
+    pass  # Scope already exists, continue to update secrets
 w.secrets.put_secret(
     scope="database",
     key="lakebase-url",
