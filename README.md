@@ -1,9 +1,3 @@
-The most difficult part of this assignment was connecting the application to Lakebase and ensuring that all CRUD operations worked correctly after deployment. Unlike a traditional analytics table, Lakebase is designed for operational workloads, allowing the application to efficiently insert, update, and delete records while maintaining transactional consistency. Traditional analytics tables are primarily optimized for querying and reporting rather than powering live applications. If I were to extend this project, I would add ticket priority and filtering by status so users can more easily manage and track support requests.
-
-
-Link to Assignment: https://bootcamp-assignment-7474648829050174.aws.databricksapps.com/
-
-
 # Bootcamp Day 1 Assignment – Support Ticket System
 
 ## Databricks App URL
