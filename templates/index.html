@@ -299,7 +299,45 @@
           data.forEach((row) => {
             const tr = document.createElement("tr");
             const price = row.latest_price !== null && row.latest_price !== undefined
-              ? ' + Number(row.latest_price).toFixed(2)
+              ? '
+            const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
+            tr.innerHTML = `<td><span class="symbol-badge">${row.symbol}</span></td><td>${row.email || "-"}</td><td class="price">${price}</td><td>${updated}</td>`;
+            watchlistBody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        resultEl.textContent = "Failed to load watchlist: " + err;
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const symbol = document.getElementById("symbol").value;
+      resultEl.textContent = "Adding to watchlist...";
+
+      try {
+        const resp = await fetch("/watchlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          return;
+        }
+        resultEl.textContent = "✓ Successfully added " + data.symbol + " at $" + Number(data.latest_price).toFixed(2);
+        document.getElementById("symbol").value = "";
+        loadWatchlist();
+      } catch (err) {
+        resultEl.textContent = "Request failed: " + err;
+      }
+    });
+
+    loadWatchlist();
+  </script>
+</body>
+</html> + Number(row.latest_price).toFixed(2)
               : "-";
             const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
             tr.innerHTML = `<td><span class="symbol-badge">${row.symbol}</span></td><td>${row.email || "-"}</td><td class="price">${price}</td><td>${updated}</td>`;
