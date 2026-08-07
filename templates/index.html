@@ -4,88 +4,615 @@
   <meta charset="UTF-8">
   <title>Support Ticket System</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 1400px; margin: 40px auto; padding: 0 20px; color: #222; }
-    h1 { font-size: 24px; margin-bottom: 8px; }
-    h2 { font-size: 18px; margin-top: 32px; margin-bottom: 12px; }
-    h3 { font-size: 16px; margin-top: 24px; margin-bottom: 8px; }
-    label { display: block; margin-top: 12px; font-weight: 600; font-size: 14px; }
-    input[type="text"], textarea, select { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
-    textarea { min-height: 80px; resize: vertical; }
-    button { margin-top: 16px; padding: 10px 20px; cursor: pointer; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; }
-    button:hover { background: #0052a3; }
-    button.secondary { background: #6c757d; }
-    button.secondary:hover { background: #5a6268; }
-    button.delete { background: #999; padding: 6px 12px; font-size: 12px; margin: 0; }
-    button.delete:hover { background: #777; }
-    #result { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 14px; }
-    #result.success { background: #d4edda; color: #155724; }
-    #result.error { background: #f8d7da; color: #721c24; }
-    .hint { color: #666; font-size: 13px; margin-top: 4px; }
-    table { width: 100%; margin-top: 16px; border-collapse: collapse; background: white; border: 1px solid #ddd; }
-    th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
-    th { font-size: 12px; color: #555; text-transform: uppercase; background: #f8f8f8; font-weight: 600; }
-    td { font-size: 14px; }
-    tbody tr { cursor: pointer; transition: background 0.15s; }
-    tbody tr:hover { background: #f5f5f5; }
-    tbody tr.selected { background: #e3f2fd; }
-    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; }
-    .status-open { background: #e3f2fd; color: #1565c0; }
-    .status-in_progress { background: #fff3e0; color: #ef6c00; }
-    .status-resolved { background: #e8f5e9; color: #2e7d32; }
-    .priority-high { color: #d32f2f; font-weight: 600; }
-    .priority-medium { color: #f57c00; }
-    .priority-low { color: #388e3c; }
-    .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
-    .ticket-list-section { min-width: 0; }
-    .ticket-detail-section { min-width: 0; }
-    .detail-card { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 20px; }
-    .detail-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; }
-    .detail-title { font-size: 20px; font-weight: 600; margin: 0 0 8px 0; }
-    .detail-meta { font-size: 13px; color: #666; margin-bottom: 16px; }
-    .detail-description { margin-bottom: 20px; padding: 12px; background: #f8f8f8; border-radius: 4px; }
-    .messages-container { max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
-    .message { background: #f8f8f8; padding: 12px; border-radius: 4px; margin-bottom: 12px; }
-    .message-header { font-size: 12px; color: #666; margin-bottom: 6px; }
-    .message-author { font-weight: 600; color: #333; }
-    .message-text { font-size: 14px; color: #222; }
-    .no-messages { text-align: center; color: #999; padding: 40px; font-style: italic; }
-    .hidden { display: none; }
-    .filters { margin-bottom: 16px; padding: 16px; background: #f8f8f8; border-radius: 6px; }
-    .filter-group { margin-bottom: 12px; }
-    .filter-group:last-child { margin-bottom: 0; }
-    .filter-label { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; display: block; }
-    .filter-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
-    .filter-btn { padding: 6px 14px; font-size: 13px; border: 1px solid #ddd; background: white; color: #555; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
-    .filter-btn:hover { background: #f0f0f0; border-color: #bbb; }
-    .filter-btn.active { background: #0066cc; color: white; border-color: #0066cc; }
-    .filter-btn.active:hover { background: #0052a3; border-color: #0052a3; }
-    .dashboard { margin-top: 32px; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 24px; }
-    .dashboard-title { font-size: 18px; font-weight: 600; margin: 0 0 20px 0; color: #222; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .stat-card { background: #f8f9fa; border-radius: 6px; padding: 16px; border-left: 4px solid #0066cc; }
-    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
-    .stat-value { font-size: 28px; font-weight: 700; color: #222; }
-    .stat-subtitle { font-size: 13px; color: #666; margin-top: 4px; }
-    .status-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .status-breakdown-card { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; }
-    .status-breakdown-title { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 12px; text-align: center; text-transform: uppercase; }
-    .priority-stat { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
-    .priority-stat:last-child { border-bottom: none; }
-    .priority-stat-label { font-size: 13px; font-weight: 500; }
-    .priority-stat-value { font-size: 14px; font-weight: 700; color: #0066cc; }
-    .chart-container { margin-top: 24px; padding: 20px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; }
-    .chart-title { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 16px; text-align: center; }
-    .chart-row { display: flex; align-items: center; margin-bottom: 12px; }
-    .chart-row:last-child { margin-bottom: 0; }
-    .chart-label { width: 100px; font-size: 13px; font-weight: 600; color: #555; text-align: right; padding-right: 12px; }
-    .chart-bar-container { flex: 1; height: 32px; background: #f5f5f5; border-radius: 4px; display: flex; position: relative; overflow: hidden; }
-    .chart-bar { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: white; transition: width 0.3s ease; }
-    .chart-bar-high { background: #d32f2f; }
-    .chart-bar-medium { background: #f57c00; }
-    .chart-bar-low { background: #388e3c; }
-    .chart-legend { display: flex; justify-content: center; gap: 20px; margin-top: 16px; font-size: 12px; }
-    .chart-legend-item { display: flex; align-items: center; gap: 6px; }
-    .chart-legend-color { width: 16px; height: 16px; border-radius: 3px; }
+    /* Base & Typography */
+    * { box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif; 
+      max-width: 1440px; 
+      margin: 0 auto; 
+      padding: 32px 40px 80px; 
+      background: #f5f7fa;
+      color: #1a202c;
+      line-height: 1.6;
+    }
+    h1 { 
+      font-size: 32px; 
+      font-weight: 700; 
+      margin: 0 0 8px 0; 
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    h2 { 
+      font-size: 20px; 
+      font-weight: 600; 
+      margin: 48px 0 20px 0; 
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    h3 { 
+      font-size: 16px; 
+      font-weight: 600; 
+      margin: 24px 0 12px 0; 
+      color: #334155;
+    }
+    .hint { 
+      color: #64748b; 
+      font-size: 15px; 
+      margin-top: 4px; 
+      font-weight: 400;
+    }
+
+    /* Form Elements */
+    label { 
+      display: block; 
+      margin-top: 20px; 
+      margin-bottom: 8px;
+      font-weight: 500; 
+      font-size: 14px; 
+      color: #334155;
+      letter-spacing: -0.01em;
+    }
+    input[type="text"], textarea, select { 
+      width: 100%; 
+      padding: 11px 14px; 
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-family: inherit; 
+      font-size: 14px;
+      background: white;
+      color: #1a202c;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    input[type="text"]:focus, textarea:focus, select:focus { 
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    input[type="text"]::placeholder, textarea::placeholder {
+      color: #94a3b8;
+    }
+    textarea { 
+      min-height: 100px; 
+      resize: vertical;
+      line-height: 1.5;
+    }
+    select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 40px;
+    }
+
+    /* Buttons */
+    button { 
+      margin-top: 20px; 
+      padding: 11px 20px; 
+      cursor: pointer; 
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      font-size: 14px; 
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    .delete-btn {
+      margin-top: 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+      border-radius: 6px;
+    }
+    .delete-btn:hover {
+      background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+      box-shadow: 0 4px 8px rgba(100, 116, 139, 0.3);
+      letter-spacing: -0.01em;
+    }
+    button:hover { 
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+      transform: translateY(-1px);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    }
+    button.secondary { 
+      background: white;
+      color: #64748b;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    button.secondary:hover { 
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #475569;
+      transform: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    button.close-btn {
+      padding: 6px 10px;
+      font-size: 16px;
+      min-width: auto;
+    }
+    button.delete { 
+      background: #94a3b8;
+      padding: 6px 12px; 
+      font-size: 12px; 
+      margin: 0;
+      box-shadow: 0 1px 3px rgba(100, 116, 139, 0.2);
+    }
+    button.delete:hover { 
+      background: #64748b;
+      box-shadow: 0 2px 4px rgba(100, 116, 139, 0.3);
+    }
+
+    /* Result Messages */
+    #result { 
+      margin-top: 20px; 
+      padding: 14px 16px; 
+      border-radius: 8px; 
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+    }
+    #result.success { 
+      background: #ecfdf5; 
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+    #result.error { 
+      background: #fef2f2; 
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+
+    /* Tables */
+    table { 
+      width: 100%; 
+      margin-top: 16px; 
+      border-collapse: separate;
+      border-spacing: 0;
+      background: white; 
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    th, td { 
+      text-align: left; 
+      padding: 14px 16px;
+    }
+    th { 
+      font-size: 11px; 
+      color: #64748b; 
+      text-transform: uppercase; 
+      background: #f8fafc;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    td { 
+      font-size: 14px;
+      color: #334155;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    tbody tr { 
+      cursor: pointer; 
+      transition: all 0.15s ease;
+    }
+    tbody tr:hover { 
+      background: #f8fafc;
+    }
+    tbody tr.selected { 
+      background: #eff6ff;
+      box-shadow: inset 3px 0 0 #3b82f6;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Status Badges */
+    .status-badge { 
+      padding: 5px 12px; 
+      border-radius: 6px; 
+      font-size: 12px; 
+      font-weight: 600; 
+      display: inline-block;
+      letter-spacing: 0.02em;
+      text-transform: capitalize;
+    }
+    .status-open { 
+      background: #dbeafe; 
+      color: #1e40af;
+    }
+    .status-in_progress { 
+      background: #fed7aa; 
+      color: #c2410c;
+    }
+    .status-resolved { 
+      background: #d1fae5; 
+      color: #047857;
+    }
+
+    /* Priority Colors */
+    .priority-high { 
+      color: #dc2626; 
+      font-weight: 600;
+    }
+    .priority-medium { 
+      color: #ea580c;
+      font-weight: 500;
+    }
+    .priority-low { 
+      color: #059669;
+      font-weight: 500;
+    }
+
+    /* Layout */
+    .main-content { 
+      display: grid; 
+      grid-template-columns: 1fr 1fr; 
+      gap: 32px; 
+      margin-top: 32px;
+    }
+    .ticket-list-section, .ticket-detail-section { 
+      min-width: 0;
+    }
+
+    /* Cards */
+    .detail-card { 
+      background: white; 
+      border: 1px solid #e2e8f0;
+      border-radius: 12px; 
+      padding: 28px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .detail-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: start; 
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1.5px solid #f1f5f9;
+    }
+    .detail-title { 
+      font-size: 22px; 
+      font-weight: 600; 
+      margin: 0 0 10px 0;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+    }
+    .detail-meta { 
+      font-size: 13px; 
+      color: #64748b; 
+      margin-bottom: 0;
+      line-height: 1.8;
+    }
+    .detail-description { 
+      margin-bottom: 24px; 
+      padding: 16px; 
+      background: #f8fafc; 
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      line-height: 1.6;
+    }
+
+    /* Messages */
+    .messages-container { 
+      max-height: 420px; 
+      overflow-y: auto; 
+      margin-bottom: 24px;
+      padding-right: 4px;
+    }
+    .messages-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    .messages-container::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 3px;
+    }
+    .messages-container::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .messages-container::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .message { 
+      background: white;
+      padding: 14px 16px; 
+      border-radius: 8px; 
+      margin-bottom: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .message-header { 
+      font-size: 12px; 
+      color: #64748b; 
+      margin-bottom: 8px;
+    }
+    .message-author { 
+      font-weight: 600; 
+      color: #0f172a;
+    }
+    .message-text { 
+      font-size: 14px; 
+      color: #334155;
+      line-height: 1.6;
+    }
+    .no-messages { 
+      text-align: center; 
+      color: #94a3b8; 
+      padding: 60px 20px;
+      font-size: 14px;
+    }
+
+    /* Filters */
+    .filters { 
+      margin-bottom: 16px; 
+      padding: 20px; 
+      background: white; 
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .filter-group { 
+      margin-bottom: 16px;
+    }
+    .filter-group:last-child { 
+      margin-bottom: 0;
+    }
+    .filter-label { 
+      font-size: 12px; 
+      font-weight: 600; 
+      color: #64748b; 
+      margin-bottom: 10px; 
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .filter-buttons { 
+      display: flex; 
+      gap: 8px; 
+      flex-wrap: wrap;
+    }
+    .filter-btn { 
+      padding: 7px 14px; 
+      font-size: 13px; 
+      border: 1.5px solid #e2e8f0; 
+      background: white; 
+      color: #64748b; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      font-weight: 500; 
+      transition: all 0.15s ease;
+    }
+    .filter-btn:hover { 
+      background: #f8fafc; 
+      border-color: #cbd5e1;
+      color: #475569;
+    }
+    .filter-btn.active { 
+      background: #3b82f6; 
+      color: white; 
+      border-color: #3b82f6;
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    }
+    .filter-btn.active:hover { 
+      background: #2563eb; 
+      border-color: #2563eb;
+    }
+
+    /* Dashboard */
+    .dashboard { 
+      margin-top: 0;
+      margin-bottom: 32px;
+      background: white; 
+      border: 1px solid #e2e8f0;
+      border-radius: 12px; 
+      padding: 32px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .dashboard-title { 
+      font-size: 20px; 
+      font-weight: 600; 
+      margin: 0 0 24px 0; 
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    .stats-grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+      gap: 16px; 
+      margin-bottom: 28px;
+    }
+    .stat-card { 
+      background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+      border-radius: 10px; 
+      padding: 20px; 
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease;
+    }
+    .stat-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+      transform: translateY(-2px);
+    }
+    .stat-label { 
+      font-size: 11px; 
+      color: #64748b; 
+      text-transform: uppercase; 
+      font-weight: 600; 
+      margin-bottom: 10px;
+      letter-spacing: 0.05em;
+    }
+    .stat-value { 
+      font-size: 32px; 
+      font-weight: 700; 
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .stat-subtitle { 
+      font-size: 13px; 
+      color: #64748b; 
+      margin-top: 8px;
+      font-weight: 400;
+    }
+
+    /* Status Breakdown */
+    .status-breakdown { 
+      display: grid; 
+      grid-template-columns: repeat(3, 1fr); 
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .status-breakdown-card { 
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px; 
+      padding: 18px;
+    }
+    .status-breakdown-title { 
+      font-size: 11px; 
+      font-weight: 600; 
+      color: #64748b; 
+      margin-bottom: 16px; 
+      text-align: center; 
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .priority-stat { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      padding: 10px 0; 
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .priority-stat:last-child { 
+      border-bottom: none;
+    }
+    .priority-stat-label { 
+      font-size: 13px; 
+      font-weight: 500;
+    }
+    .priority-stat-value { 
+      font-size: 16px; 
+      font-weight: 700; 
+      color: #3b82f6;
+    }
+
+    /* Charts */
+    .chart-container { 
+      margin-top: 0;
+      padding: 24px; 
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+    }
+    .chart-title { 
+      font-size: 13px; 
+      font-weight: 600; 
+      color: #64748b; 
+      margin-bottom: 20px; 
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-row { 
+      display: flex; 
+      align-items: center; 
+      margin-bottom: 14px;
+    }
+    .chart-row:last-child { 
+      margin-bottom: 0;
+    }
+    .chart-label { 
+      width: 110px; 
+      font-size: 13px; 
+      font-weight: 600; 
+      color: #475569; 
+      text-align: right; 
+      padding-right: 16px;
+    }
+    .chart-bar-container { 
+      flex: 1; 
+      height: 36px; 
+      background: white;
+      border-radius: 6px; 
+      display: flex; 
+      position: relative; 
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .chart-bar { 
+      height: 100%; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 12px; 
+      font-weight: 700; 
+      color: white; 
+      transition: width 0.3s ease;
+    }
+    .chart-bar-high { 
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+    .chart-bar-medium { 
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    }
+    .chart-bar-low { 
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    .chart-legend { 
+      display: flex; 
+      justify-content: center; 
+      gap: 24px; 
+      margin-top: 20px; 
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .chart-legend-item { 
+      display: flex; 
+      align-items: center; 
+      gap: 8px;
+      color: #64748b;
+    }
+    .chart-legend-color { 
+      width: 18px; 
+      height: 18px; 
+      border-radius: 4px;
+    }
+
+    /* Utility */
+    .hidden { 
+      display: none;
+    }
+
+    /* Form Container */
+    #ticket-form {
+      background: white;
+      padding: 32px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+      margin-top: 32px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .main-content {
+        grid-template-columns: 1fr;
+      }
+      body {
+        padding: 24px 20px 60px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -118,53 +645,6 @@
         <div class="stat-label">Avg Time Open</div>
         <div class="stat-value" id="stat-avg-time">--</div>
         <div class="stat-subtitle">for active tickets</div>
-      </div>
-    </div>
-    <div class="status-breakdown">
-      <div class="status-breakdown-card">
-        <div class="status-breakdown-title">Open Tickets by Priority</div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-high">High</span>
-          <span class="priority-stat-value" id="open-high">0</span>
-        </div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-medium">Medium</span>
-          <span class="priority-stat-value" id="open-medium">0</span>
-        </div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-low">Low</span>
-          <span class="priority-stat-value" id="open-low">0</span>
-        </div>
-      </div>
-      <div class="status-breakdown-card">
-        <div class="status-breakdown-title">In Progress by Priority</div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-high">High</span>
-          <span class="priority-stat-value" id="progress-high">0</span>
-        </div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-medium">Medium</span>
-          <span class="priority-stat-value" id="progress-medium">0</span>
-        </div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-low">Low</span>
-          <span class="priority-stat-value" id="progress-low">0</span>
-        </div>
-      </div>
-      <div class="status-breakdown-card">
-        <div class="status-breakdown-title">Resolved by Priority</div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-high">High</span>
-          <span class="priority-stat-value" id="resolved-high">0</span>
-        </div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-medium">Medium</span>
-          <span class="priority-stat-value" id="resolved-medium">0</span>
-        </div>
-        <div class="priority-stat">
-          <span class="priority-stat-label priority-low">Low</span>
-          <span class="priority-stat-value" id="resolved-low">0</span>
-        </div>
       </div>
     </div>
     
@@ -281,7 +761,7 @@
               <span id="detail-meta"></span>
             </div>
           </div>
-          <button class="secondary" onclick="clearSelection()">✕ Close</button>
+          <button class="secondary close-btn" onclick="clearSelection()">✕</button>
         </div>
 
         <div class="detail-description" id="detail-description"></div>
@@ -295,16 +775,16 @@
           </select>
         </div>
 
-        <h3>Messages</h3>
-        <div class="messages-container" id="messages-container">
-          <div class="no-messages">No messages yet. Be the first to comment!</div>
-        </div>
-
         <form id="message-form">
           <label for="message-text">Add a message</label>
           <textarea id="message-text" name="message-text" placeholder="Type your message here..." required></textarea>
           <button type="submit">Send Message</button>
         </form>
+
+        <h3>Messages</h3>
+        <div class="messages-container" id="messages-container">
+          <div class="no-messages">No messages yet. Be the first to comment!</div>
+        </div>
       </div>
     </div>
   </div>
@@ -412,15 +892,7 @@
         document.getElementById('stat-avg-time').textContent = '--';
       }
       
-      document.getElementById('open-high').textContent = stats.openHigh;
-      document.getElementById('open-medium').textContent = stats.openMedium;
-      document.getElementById('open-low').textContent = stats.openLow;
-      document.getElementById('progress-high').textContent = stats.progressHigh;
-      document.getElementById('progress-medium').textContent = stats.progressMedium;
-      document.getElementById('progress-low').textContent = stats.progressLow;
-      document.getElementById('resolved-high').textContent = stats.resolvedHigh;
-      document.getElementById('resolved-medium').textContent = stats.resolvedMedium;
-      document.getElementById('resolved-low').textContent = stats.resolvedLow;
+      // Removed priority breakdown cards - no need to update those elements
       
       updateChart(stats);
     }
@@ -521,6 +993,7 @@
           <td>${ticket.title}</td>
           <td><span class="status-badge ${statusClass}">${ticket.status.replace('_', ' ')}</span></td>
           <td class="${priorityClass}">${ticket.priority}</td>
+          <td><button class="delete-btn" onclick="event.stopPropagation(); deleteTicket(${ticket.ticket_id}, '${ticket.title.replace(/'/g, "\\'")}')">Delete</button></td>
         `;
         tr.onclick = () => selectTicket(ticket.ticket_id);
         if (ticket.ticket_id === selectedTicketId) {
@@ -574,6 +1047,36 @@
       }
     }
 
+    async function deleteTicket(ticketId, ticketTitle) {
+      if (!confirm(`Are you sure you want to delete ticket #${ticketId}: "${ticketTitle}"?\n\nThis will also delete all associated messages. This action cannot be undone.`)) {
+        return;
+      }
+      
+      try {
+        const resp = await fetch(`/tickets/${ticketId}`, {
+          method: "DELETE"
+        });
+        const data = await resp.json();
+        
+        if (!resp.ok) {
+          showResult("Error deleting ticket: " + (data.error || resp.statusText), true);
+          return;
+        }
+        
+        showResult(data.message || `Ticket #${ticketId} deleted successfully!`, false);
+        
+        // If the deleted ticket was selected, clear the detail view
+        if (selectedTicketId === ticketId) {
+          clearSelection();
+        }
+        
+        // Reload tickets to update the list
+        loadTickets();
+      } catch (err) {
+        showResult("Failed to delete ticket: " + err, true);
+      }
+    }
+
     async function loadMessages(ticketId) {
       try {
         const resp = await fetch(`/tickets/${ticketId}/messages`);
@@ -592,7 +1095,8 @@
         }
 
         container.innerHTML = "";
-        messages.forEach((msg) => {
+        // Reverse messages to show newest first
+        messages.reverse().forEach((msg) => {
           const msgDiv = document.createElement("div");
           msgDiv.className = "message";
           msgDiv.innerHTML = `
@@ -604,8 +1108,8 @@
           container.appendChild(msgDiv);
         });
         
-        // Scroll to bottom
-        container.scrollTop = container.scrollHeight;
+        // Scroll to top to show newest messages
+        container.scrollTop = 0;
       } catch (err) {
         console.error("Failed to load messages:", err);
       }
