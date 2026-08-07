@@ -7,9 +7,3 @@ env:
     value: "database"
   - name: LAKEBASE_SECRET_KEY
     value: "lakebase-url"
-  - name: MASSIVE_API_BASE_URL
-    value: "https://api.massive.com"
-  - name: MASSIVE_SECRET_SCOPE
-    value: "massive"
-  - name: MASSIVE_SECRET_KEY
-    value: "api-key"

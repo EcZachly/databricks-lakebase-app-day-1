@@ -1,33 +1,23 @@
-# Massive + Lakebase Databricks App Boilerplate
+# Support Ticket Management - Lakebase Databricks App
 
-A minimal Databricks App that:
+A support ticket management system built as a Databricks App that:
 - Connects to **Lakebase** (Databricks-managed Postgres) using a single `LAKEBASE_URL` secret (a native Postgres role with a static password)
-- Calls the **Massive API** (large paginated dataset) using a key stored in a Databricks secret scope
-- Syncs Massive API data into Lakebase in batches
-- Exposes a small Flask API to trigger syncs and read synced records
+- Provides REST API endpoints for creating, reading, and updating support tickets
+- Includes a web UI for ticket management
+- Demonstrates idempotent schema initialization and database best practices
 
 ## Files
 
 - `app.py` - Flask app: `/healthz`, `/records` (GET), `/sync` (POST)
+- `db_schema.py` - Database schema definitions for support ticket tables
 - `lakebase.py` - Lakebase connection helper (single `LAKEBASE_URL`, psycopg2 + SQLAlchemy)
-- `massive_client.py` - Massive API client with pagination generator for large datasets
-- `setup_secrets.py` - One-time script to create the secret scopes and store the Massive API key + Lakebase URL
+- `setup_secrets.py` - One-time script to create the secret scopes and store the Lakebase URL
 - `app.yaml` - Databricks App deployment config (command + env vars)
 - `.env.example` - Local dev env var template (copy to `.env`, do not commit real values)
 
 ## Step-by-step setup
 
-### 1. Create a Massive.com account and get an API key
-
-1. Go to [https://massive.com](https://massive.com) and sign up for a new account (or log in if you already have one).
-2. Once logged in, open your account/workspace **Settings** (or **Developer** / **API** section, depending on Massive's current UI).
-3. Find **API Keys** and click **Create API Key** (or **Generate New Key**).
-4. Give the key a name (e.g. `databricks-app`) and copy the generated key value immediately — most providers only show it once.
-5. Keep this key handy for step 3 (Store your secrets) below. Do **not** put it in code, `.env` committed to git, or anywhere else in plaintext.
-
-> If Massive's console differs from the steps above, look for **API Keys**, **Tokens**, or **Credentials** under your account/organization settings — the key is what authenticates requests to `https://api.massive.com` in `massive_client.py`.
-
-### 2. Create a Lakebase instance and a native-password role
+### 1. Create a Lakebase instance and a native-password role
 
 1. In your Databricks workspace, go to **Catalog** (left sidebar) and select the **Lakebase** tab (or search "Lakebase" in the workspace search bar).
 2. Click **Create Lakebase instance** (sometimes labeled **Create database instance**).

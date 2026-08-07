@@ -2,97 +2,157 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Massive Stock Watchlist</title>
+  <title>Support Ticket System</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 60px auto; color: #222; }
-    h1 { font-size: 20px; }
-    label { display: block; margin-top: 16px; font-weight: 600; }
-    input[type="text"] { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; cursor: pointer; }
-    #result { margin-top: 20px; white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 6px; min-height: 20px; }
-    .hint { color: #777; font-size: 13px; margin-top: 4px; }
-    table { width: 100%; margin-top: 24px; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-    th { font-size: 13px; color: #555; text-transform: uppercase; }
+    body { font-family: -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #222; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    h2 { font-size: 18px; margin-top: 32px; margin-bottom: 12px; }
+    label { display: block; margin-top: 12px; font-weight: 600; font-size: 14px; }
+    input[type="text"], textarea, select { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
+    textarea { min-height: 80px; resize: vertical; }
+    button { margin-top: 16px; padding: 10px 20px; cursor: pointer; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; }
+    button:hover { background: #0052a3; }
+    #result { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 14px; }
+    #result.success { background: #d4edda; color: #155724; }
+    #result.error { background: #f8d7da; color: #721c24; }
+    .hint { color: #666; font-size: 13px; margin-top: 4px; }
+    table { width: 100%; margin-top: 16px; border-collapse: collapse; background: white; border: 1px solid #ddd; }
+    th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+    th { font-size: 12px; color: #555; text-transform: uppercase; background: #f8f8f8; font-weight: 600; }
+    td { font-size: 14px; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .status-open { background: #e3f2fd; color: #1565c0; }
+    .status-in_progress { background: #fff3e0; color: #ef6c00; }
+    .status-resolved { background: #e8f5e9; color: #2e7d32; }
+    .priority-high { color: #d32f2f; font-weight: 600; }
+    .priority-medium { color: #f57c00; }
+    .priority-low { color: #388e3c; }
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <h1>Support Ticket System</h1>
+  <p class="hint">Create and manage support tickets for your team.</p>
 
-  <form id="stock-form">
-    <label for="symbol">Ticker symbol</label>
-    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-    <button type="submit">Add to watchlist</button>
+  <form id="ticket-form">
+    <label for="title">Title *</label>
+    <input type="text" id="title" name="title" placeholder="Brief description of the issue" required>
+
+    <label for="description">Description</label>
+    <textarea id="description" name="description" placeholder="Provide detailed information about the issue..."></textarea>
+
+    <label for="priority">Priority *</label>
+    <select id="priority" name="priority" required>
+      <option value="medium" selected>Medium</option>
+      <option value="low">Low</option>
+      <option value="high">High</option>
+    </select>
+
+    <label for="category">Category</label>
+    <input type="text" id="category" name="category" placeholder="e.g., Login, Billing, Performance (optional)">
+
+    <button type="submit">Create Ticket</button>
   </form>
 
   <div id="result"></div>
 
-  <table id="watchlist-table">
+  <h2>Recent Tickets</h2>
+  <table id="tickets-table">
     <thead>
       <tr>
-        <th>Symbol</th>
-        <th>Email</th>
-        <th>Latest price</th>
-        <th>Updated</th>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Category</th>
+        <th>Created By</th>
+        <th>Created</th>
       </tr>
     </thead>
-    <tbody id="watchlist-body"></tbody>
+    <tbody id="tickets-body"></tbody>
   </table>
 
   <script>
-    const form = document.getElementById("stock-form");
+    const form = document.getElementById("ticket-form");
     const resultEl = document.getElementById("result");
-    const watchlistBody = document.getElementById("watchlist-body");
+    const ticketsBody = document.getElementById("tickets-body");
 
-    async function loadWatchlist() {
+    function showResult(message, isError = false) {
+      resultEl.textContent = message;
+      resultEl.className = isError ? 'error' : 'success';
+      resultEl.style.display = 'block';
+      setTimeout(() => {
+        resultEl.style.display = 'none';
+      }, 5000);
+    }
+
+    async function loadTickets() {
       try {
-        const resp = await fetch("/watchlist");
+        const resp = await fetch("/tickets");
         const data = await resp.json();
         if (!resp.ok) {
-          resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
+          console.error("Error loading tickets:", data.error || resp.statusText);
           return;
         }
-        watchlistBody.innerHTML = "";
-        data.forEach((row) => {
+        ticketsBody.innerHTML = "";
+        if (data.length === 0) {
+          ticketsBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999;">No tickets yet. Create one above!</td></tr>';
+          return;
+        }
+        data.forEach((ticket) => {
           const tr = document.createElement("tr");
-          const price = row.latest_price !== null && row.latest_price !== undefined
-            ? Number(row.latest_price).toFixed(2)
-            : "-";
-          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td>${price}</td><td>${updated}</td>`;
-          watchlistBody.appendChild(tr);
+          const statusClass = `status-${ticket.status.replace('_', '-')}`;
+          const priorityClass = `priority-${ticket.priority}`;
+          const created = new Date(ticket.created_at).toLocaleString();
+          
+          tr.innerHTML = `
+            <td>${ticket.ticket_id}</td>
+            <td>${ticket.title}</td>
+            <td><span class="status-badge ${statusClass}">${ticket.status.replace('_', ' ')}</span></td>
+            <td class="${priorityClass}">${ticket.priority}</td>
+            <td>${ticket.category || '-'}</td>
+            <td>${ticket.created_by}</td>
+            <td>${created}</td>
+          `;
+          ticketsBody.appendChild(tr);
         });
       } catch (err) {
-        resultEl.textContent = "Failed to load watchlist: " + err;
+        console.error("Failed to load tickets:", err);
       }
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
+      
+      const formData = {
+        title: document.getElementById("title").value.trim(),
+        description: document.getElementById("description").value.trim(),
+        priority: document.getElementById("priority").value,
+        category: document.getElementById("category").value.trim()
+      };
 
       try {
-        const resp = await fetch("/watchlist", {
+        const resp = await fetch("/tickets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol }),
+          body: JSON.stringify(formData),
         });
         const data = await resp.json();
+        
         if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
+          showResult("Error: " + (data.error || resp.statusText), true);
           return;
         }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
-        document.getElementById("symbol").value = "";
-        loadWatchlist();
+        
+        showResult(`Ticket #${data.ticket_id} created successfully!`, false);
+        form.reset();
+        loadTickets();
       } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+        showResult("Request failed: " + err, true);
       }
     });
 
-    loadWatchlist();
+    // Load tickets on page load
+    loadTickets();
   </script>
 </body>
 </html>

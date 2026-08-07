@@ -1,7 +1,7 @@
 """
 One-time setup script: creates the Databricks secret scope and stores the
-Massive API key. Run this locally (with the Databricks CLI configured) or
-from a notebook - never commit the resulting secret value anywhere.
+Lakebase connection URL. Run this from a notebook or locally (with the 
+Databricks CLI configured) - never commit the resulting secret value anywhere.
 
 Usage:
     python setup_secrets.py
@@ -12,29 +12,31 @@ import getpass
 
 w = WorkspaceClient()
 
-w.secrets.create_scope(scope="massive")
-w.secrets.put_secret(
-    scope="massive",
-    key="api-key",
-    string_value=getpass.getpass("Paste your Massive API key: ")
+try:
+    w.secrets.create_scope(scope="database")
+    print("✓ Created 'database' secret scope")
+except Exception as e:
+    print(f"'database' scope already exists (or error: {e})")
+
+lakebase_url = getpass.getpass(
+    "Paste your Lakebase connection URL (postgresql://...): "
 )
 
-w.secrets.create_scope(scope="database")
+if not lakebase_url.startswith("postgresql://"):
+    print("⚠ Warning: URL doesn't start with 'postgresql://' - are you sure it's correct?")
+
 w.secrets.put_secret(
     scope="database",
     key="lakebase-url",
-    string_value=getpass.getpass("Paste your Lakebase URL: ")
+    string_value=lakebase_url
 )
-
+print("✓ Stored lakebase-url secret")
 
 w.secrets.put_acl(
     scope="database",
     principal="users",
     permission=workspace.AclPermission.READ,
 )
+print("✓ Set READ permissions for 'users' principal")
 
-w.secrets.put_acl(
-    scope="massive",
-    principal="users",
-    permission=workspace.AclPermission.READ,
-)
+print("\n✅ Setup complete! Your app can now connect to Lakebase.")

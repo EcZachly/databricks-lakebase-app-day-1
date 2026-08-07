@@ -14,7 +14,6 @@ from contextlib import contextmanager
 import psycopg2
 from databricks.sdk import WorkspaceClient
 from psycopg2.extras import RealDictCursor
-from sqlalchemy import create_engine
 
 _w = WorkspaceClient()
 
@@ -40,15 +39,22 @@ def get_connection():
 
 def get_engine():
     """Return a SQLAlchemy engine for Lakebase."""
+    from sqlalchemy import create_engine
     return create_engine(_lakebase_url())
 
 
 def run_query(sql: str, params: tuple | dict | None = None) -> list[dict]:
-    """Run a read query against Lakebase and return rows as list[dict]."""
+    """Run a query against Lakebase and return rows as list[dict].
+    
+    Commits the transaction to ensure INSERT/UPDATE/DELETE...RETURNING
+    statements persist. Safe to call for pure SELECTs as well.
+    """
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
-            return cur.fetchall()
+            result = cur.fetchall()
+            conn.commit()
+            return result
 
 
 def run_write(sql: str, params: tuple | dict | None = None) -> int:
