@@ -226,6 +226,38 @@ def update_ticket(ticket_id):
     return jsonify(rows[0])
 
 
+@app.route("/tickets/<int:ticket_id>", methods=["DELETE"])
+def delete_ticket(ticket_id):
+    """Delete a ticket and all its associated messages."""
+    # Verify ticket exists
+    ticket_rows = lakebase.run_query(
+        "SELECT ticket_id, title FROM tickets WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    if not ticket_rows:
+        return jsonify({"error": "Ticket not found"}), 404
+    
+    # Delete associated messages first (due to foreign key constraints)
+    lakebase.run_write(
+        "DELETE FROM ticket_messages WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    
+    # Delete the ticket
+    affected = lakebase.run_write(
+        "DELETE FROM tickets WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    
+    if affected == 0:
+        return jsonify({"error": "Failed to delete ticket"}), 500
+    
+    return jsonify({
+        "message": f"Ticket #{ticket_id} deleted successfully",
+        "ticket_id": ticket_id
+    }), 200
+
+
 if __name__ == '__main__':
     host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_RUN_PORT', 8000))

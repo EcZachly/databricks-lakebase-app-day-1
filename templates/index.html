@@ -4,14 +4,19 @@
   <meta charset="UTF-8">
   <title>Support Ticket System</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #222; }
+    body { font-family: -apple-system, Arial, sans-serif; max-width: 1400px; margin: 40px auto; padding: 0 20px; color: #222; }
     h1 { font-size: 24px; margin-bottom: 8px; }
     h2 { font-size: 18px; margin-top: 32px; margin-bottom: 12px; }
+    h3 { font-size: 16px; margin-top: 24px; margin-bottom: 8px; }
     label { display: block; margin-top: 12px; font-weight: 600; font-size: 14px; }
     input[type="text"], textarea, select { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
     textarea { min-height: 80px; resize: vertical; }
     button { margin-top: 16px; padding: 10px 20px; cursor: pointer; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; }
     button:hover { background: #0052a3; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #5a6268; }
+    button.delete { background: #999; padding: 6px 12px; font-size: 12px; margin: 0; }
+    button.delete:hover { background: #777; }
     #result { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 14px; }
     #result.success { background: #d4edda; color: #155724; }
     #result.error { background: #f8d7da; color: #721c24; }
@@ -20,6 +25,9 @@
     th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
     th { font-size: 12px; color: #555; text-transform: uppercase; background: #f8f8f8; font-weight: 600; }
     td { font-size: 14px; }
+    tbody tr { cursor: pointer; transition: background 0.15s; }
+    tbody tr:hover { background: #f5f5f5; }
+    tbody tr.selected { background: #e3f2fd; }
     .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; display: inline-block; }
     .status-open { background: #e3f2fd; color: #1565c0; }
     .status-in_progress { background: #fff3e0; color: #ef6c00; }
@@ -27,11 +35,158 @@
     .priority-high { color: #d32f2f; font-weight: 600; }
     .priority-medium { color: #f57c00; }
     .priority-low { color: #388e3c; }
+    .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; }
+    .ticket-list-section { min-width: 0; }
+    .ticket-detail-section { min-width: 0; }
+    .detail-card { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 20px; }
+    .detail-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; }
+    .detail-title { font-size: 20px; font-weight: 600; margin: 0 0 8px 0; }
+    .detail-meta { font-size: 13px; color: #666; margin-bottom: 16px; }
+    .detail-description { margin-bottom: 20px; padding: 12px; background: #f8f8f8; border-radius: 4px; }
+    .messages-container { max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
+    .message { background: #f8f8f8; padding: 12px; border-radius: 4px; margin-bottom: 12px; }
+    .message-header { font-size: 12px; color: #666; margin-bottom: 6px; }
+    .message-author { font-weight: 600; color: #333; }
+    .message-text { font-size: 14px; color: #222; }
+    .no-messages { text-align: center; color: #999; padding: 40px; font-style: italic; }
+    .hidden { display: none; }
+    .filters { margin-bottom: 16px; padding: 16px; background: #f8f8f8; border-radius: 6px; }
+    .filter-group { margin-bottom: 12px; }
+    .filter-group:last-child { margin-bottom: 0; }
+    .filter-label { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; display: block; }
+    .filter-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn { padding: 6px 14px; font-size: 13px; border: 1px solid #ddd; background: white; color: #555; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+    .filter-btn:hover { background: #f0f0f0; border-color: #bbb; }
+    .filter-btn.active { background: #0066cc; color: white; border-color: #0066cc; }
+    .filter-btn.active:hover { background: #0052a3; border-color: #0052a3; }
+    .dashboard { margin-top: 32px; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 24px; }
+    .dashboard-title { font-size: 18px; font-weight: 600; margin: 0 0 20px 0; color: #222; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #f8f9fa; border-radius: 6px; padding: 16px; border-left: 4px solid #0066cc; }
+    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 700; color: #222; }
+    .stat-subtitle { font-size: 13px; color: #666; margin-top: 4px; }
+    .status-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .status-breakdown-card { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px; }
+    .status-breakdown-title { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 12px; text-align: center; text-transform: uppercase; }
+    .priority-stat { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+    .priority-stat:last-child { border-bottom: none; }
+    .priority-stat-label { font-size: 13px; font-weight: 500; }
+    .priority-stat-value { font-size: 14px; font-weight: 700; color: #0066cc; }
+    .chart-container { margin-top: 24px; padding: 20px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; }
+    .chart-title { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 16px; text-align: center; }
+    .chart-row { display: flex; align-items: center; margin-bottom: 12px; }
+    .chart-row:last-child { margin-bottom: 0; }
+    .chart-label { width: 100px; font-size: 13px; font-weight: 600; color: #555; text-align: right; padding-right: 12px; }
+    .chart-bar-container { flex: 1; height: 32px; background: #f5f5f5; border-radius: 4px; display: flex; position: relative; overflow: hidden; }
+    .chart-bar { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: white; transition: width 0.3s ease; }
+    .chart-bar-high { background: #d32f2f; }
+    .chart-bar-medium { background: #f57c00; }
+    .chart-bar-low { background: #388e3c; }
+    .chart-legend { display: flex; justify-content: center; gap: 20px; margin-top: 16px; font-size: 12px; }
+    .chart-legend-item { display: flex; align-items: center; gap: 6px; }
+    .chart-legend-color { width: 16px; height: 16px; border-radius: 3px; }
   </style>
 </head>
 <body>
   <h1>Support Ticket System</h1>
   <p class="hint">Create and manage support tickets for your team.</p>
+
+  <div class="dashboard" id="dashboard">
+    <h2 class="dashboard-title">📊 Ticket Statistics</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Tickets</div>
+        <div class="stat-value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Open Tickets</div>
+        <div class="stat-value" id="stat-open">0</div>
+        <div class="stat-subtitle" id="stat-open-subtitle"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value" id="stat-progress">0</div>
+        <div class="stat-subtitle" id="stat-progress-subtitle"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Resolved</div>
+        <div class="stat-value" id="stat-resolved">0</div>
+        <div class="stat-subtitle" id="stat-resolved-subtitle"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Time Open</div>
+        <div class="stat-value" id="stat-avg-time">--</div>
+        <div class="stat-subtitle">for active tickets</div>
+      </div>
+    </div>
+    <div class="status-breakdown">
+      <div class="status-breakdown-card">
+        <div class="status-breakdown-title">Open Tickets by Priority</div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-high">High</span>
+          <span class="priority-stat-value" id="open-high">0</span>
+        </div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-medium">Medium</span>
+          <span class="priority-stat-value" id="open-medium">0</span>
+        </div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-low">Low</span>
+          <span class="priority-stat-value" id="open-low">0</span>
+        </div>
+      </div>
+      <div class="status-breakdown-card">
+        <div class="status-breakdown-title">In Progress by Priority</div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-high">High</span>
+          <span class="priority-stat-value" id="progress-high">0</span>
+        </div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-medium">Medium</span>
+          <span class="priority-stat-value" id="progress-medium">0</span>
+        </div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-low">Low</span>
+          <span class="priority-stat-value" id="progress-low">0</span>
+        </div>
+      </div>
+      <div class="status-breakdown-card">
+        <div class="status-breakdown-title">Resolved by Priority</div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-high">High</span>
+          <span class="priority-stat-value" id="resolved-high">0</span>
+        </div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-medium">Medium</span>
+          <span class="priority-stat-value" id="resolved-medium">0</span>
+        </div>
+        <div class="priority-stat">
+          <span class="priority-stat-label priority-low">Low</span>
+          <span class="priority-stat-value" id="resolved-low">0</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="chart-container">
+      <div class="chart-title">Status Distribution by Priority</div>
+      <div id="chart"></div>
+      <div class="chart-legend">
+        <div class="chart-legend-item">
+          <div class="chart-legend-color chart-bar-high"></div>
+          <span>High Priority</span>
+        </div>
+        <div class="chart-legend-item">
+          <div class="chart-legend-color chart-bar-medium"></div>
+          <span>Medium Priority</span>
+        </div>
+        <div class="chart-legend-item">
+          <div class="chart-legend-color chart-bar-low"></div>
+          <span>Low Priority</span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <form id="ticket-form">
     <label for="title">Title *</label>
@@ -48,33 +203,124 @@
     </select>
 
     <label for="category">Category</label>
-    <input type="text" id="category" name="category" placeholder="e.g., Login, Billing, Performance (optional)">
+    <select id="category" name="category">
+      <option value="">-- Select Category (optional) --</option>
+      <option value="API">API</option>
+      <option value="Authentication">Authentication</option>
+      <option value="Billing">Billing</option>
+      <option value="Data Export">Data Export</option>
+      <option value="Documentation">Documentation</option>
+      <option value="Feature Request">Feature Request</option>
+      <option value="Mobile">Mobile</option>
+      <option value="Notifications">Notifications</option>
+      <option value="Performance">Performance</option>
+      <option value="Test">Test</option>
+      <option value="User Management">User Management</option>
+    </select>
 
     <button type="submit">Create Ticket</button>
   </form>
 
   <div id="result"></div>
 
-  <h2>Recent Tickets</h2>
-  <table id="tickets-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Title</th>
-        <th>Status</th>
-        <th>Priority</th>
-        <th>Category</th>
-        <th>Created By</th>
-        <th>Created</th>
-      </tr>
-    </thead>
-    <tbody id="tickets-body"></tbody>
-  </table>
+  <div class="main-content">
+    <div class="ticket-list-section">
+      <h2>Recent Tickets</h2>
+      
+      <div class="filters">
+        <div class="filter-group">
+          <span class="filter-label">Status</span>
+          <div class="filter-buttons" id="status-filters">
+            <button class="filter-btn active" data-status="all">All</button>
+            <button class="filter-btn" data-status="open">Open</button>
+            <button class="filter-btn" data-status="in_progress">In Progress</button>
+            <button class="filter-btn" data-status="resolved">Resolved</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Category</span>
+          <div class="filter-buttons" id="category-filters">
+            <button class="filter-btn active" data-category="all">All</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Priority</span>
+          <div class="filter-buttons" id="priority-filters">
+            <button class="filter-btn active" data-priority="all">All</button>
+            <button class="filter-btn" data-priority="high">High</button>
+            <button class="filter-btn" data-priority="medium">Medium</button>
+            <button class="filter-btn" data-priority="low">Low</button>
+          </div>
+        </div>
+      </div>
+      
+      <table id="tickets-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th style="width: 80px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tickets-body"></tbody>
+      </table>
+    </div>
+
+    <div class="ticket-detail-section">
+      <div id="no-selection" class="detail-card">
+        <p style="text-align: center; color: #999; padding: 60px 20px;">Select a ticket to view details and messages</p>
+      </div>
+
+      <div id="ticket-detail" class="detail-card hidden">
+        <div class="detail-header">
+          <div>
+            <h2 class="detail-title" id="detail-title"></h2>
+            <div class="detail-meta">
+              <span id="detail-meta"></span>
+            </div>
+          </div>
+          <button class="secondary" onclick="clearSelection()">✕ Close</button>
+        </div>
+
+        <div class="detail-description" id="detail-description"></div>
+
+        <div style="margin-bottom: 20px;">
+          <label for="status-select">Status</label>
+          <select id="status-select" style="margin-top: 6px;">
+            <option value="open">Open</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+
+        <h3>Messages</h3>
+        <div class="messages-container" id="messages-container">
+          <div class="no-messages">No messages yet. Be the first to comment!</div>
+        </div>
+
+        <form id="message-form">
+          <label for="message-text">Add a message</label>
+          <textarea id="message-text" name="message-text" placeholder="Type your message here..." required></textarea>
+          <button type="submit">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </div>
 
   <script>
     const form = document.getElementById("ticket-form");
+    const messageForm = document.getElementById("message-form");
     const resultEl = document.getElementById("result");
     const ticketsBody = document.getElementById("tickets-body");
+    const statusSelect = document.getElementById("status-select");
+    
+    let selectedTicketId = null;
+    let allTickets = [];
+    let activeStatusFilter = 'all';
+    let activeCategoryFilter = 'all';
+    let activePriorityFilter = 'all';
 
     function showResult(message, isError = false) {
       resultEl.textContent = message;
@@ -93,33 +339,349 @@
           console.error("Error loading tickets:", data.error || resp.statusText);
           return;
         }
-        ticketsBody.innerHTML = "";
-        if (data.length === 0) {
-          ticketsBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #999;">No tickets yet. Create one above!</td></tr>';
-          return;
-        }
-        data.forEach((ticket) => {
-          const tr = document.createElement("tr");
-          const statusClass = `status-${ticket.status.replace('_', '-')}`;
-          const priorityClass = `priority-${ticket.priority}`;
-          const created = new Date(ticket.created_at).toLocaleString();
-          
-          tr.innerHTML = `
-            <td>${ticket.ticket_id}</td>
-            <td>${ticket.title}</td>
-            <td><span class="status-badge ${statusClass}">${ticket.status.replace('_', ' ')}</span></td>
-            <td class="${priorityClass}">${ticket.priority}</td>
-            <td>${ticket.category || '-'}</td>
-            <td>${ticket.created_by}</td>
-            <td>${created}</td>
-          `;
-          ticketsBody.appendChild(tr);
-        });
+        
+        allTickets = data;
+        updateDashboard();
+        updateCategoryFilters();
+        renderTickets();
       } catch (err) {
         console.error("Failed to load tickets:", err);
       }
     }
+    
+    function updateDashboard() {
+      const stats = {
+        total: allTickets.length,
+        open: 0,
+        in_progress: 0,
+        resolved: 0,
+        openHigh: 0, openMedium: 0, openLow: 0,
+        progressHigh: 0, progressMedium: 0, progressLow: 0,
+        resolvedHigh: 0, resolvedMedium: 0, resolvedLow: 0
+      };
+      
+      let totalTimeOpen = 0;
+      let activeTicketsCount = 0;
+      
+      allTickets.forEach(ticket => {
+        if (ticket.status === 'open') stats.open++;
+        else if (ticket.status === 'in_progress') stats.in_progress++;
+        else if (ticket.status === 'resolved') stats.resolved++;
+        
+        const statusPriorityKey = ticket.status === 'open' ? 'open' : 
+                                   ticket.status === 'in_progress' ? 'progress' : 'resolved';
+        const priorityKey = ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1);
+        const key = statusPriorityKey + priorityKey;
+        if (stats[key] !== undefined) stats[key]++;
+        
+        if (ticket.status !== 'resolved') {
+          const createdAt = new Date(ticket.created_at);
+          const now = new Date();
+          const hoursOpen = (now - createdAt) / (1000 * 60 * 60);
+          totalTimeOpen += hoursOpen;
+          activeTicketsCount++;
+        }
+      });
+      
+      document.getElementById('stat-total').textContent = stats.total;
+      document.getElementById('stat-open').textContent = stats.open;
+      document.getElementById('stat-progress').textContent = stats.in_progress;
+      document.getElementById('stat-resolved').textContent = stats.resolved;
+      
+      document.getElementById('stat-open-subtitle').textContent = 
+        `${stats.openHigh} high, ${stats.openMedium} medium, ${stats.openLow} low`;
+      document.getElementById('stat-progress-subtitle').textContent = 
+        `${stats.progressHigh} high, ${stats.progressMedium} medium, ${stats.progressLow} low`;
+      document.getElementById('stat-resolved-subtitle').textContent = 
+        `${stats.resolvedHigh} high, ${stats.resolvedMedium} medium, ${stats.resolvedLow} low`;
+      
+      if (activeTicketsCount > 0) {
+        const avgHours = totalTimeOpen / activeTicketsCount;
+        let timeString;
+        if (avgHours < 1) {
+          timeString = `${Math.round(avgHours * 60)}m`;
+        } else if (avgHours < 24) {
+          timeString = `${avgHours.toFixed(1)}h`;
+        } else {
+          const days = Math.floor(avgHours / 24);
+          const hours = Math.floor(avgHours % 24);
+          timeString = `${days}d ${hours}h`;
+        }
+        document.getElementById('stat-avg-time').textContent = timeString;
+      } else {
+        document.getElementById('stat-avg-time').textContent = '--';
+      }
+      
+      document.getElementById('open-high').textContent = stats.openHigh;
+      document.getElementById('open-medium').textContent = stats.openMedium;
+      document.getElementById('open-low').textContent = stats.openLow;
+      document.getElementById('progress-high').textContent = stats.progressHigh;
+      document.getElementById('progress-medium').textContent = stats.progressMedium;
+      document.getElementById('progress-low').textContent = stats.progressLow;
+      document.getElementById('resolved-high').textContent = stats.resolvedHigh;
+      document.getElementById('resolved-medium').textContent = stats.resolvedMedium;
+      document.getElementById('resolved-low').textContent = stats.resolvedLow;
+      
+      updateChart(stats);
+    }
+    
+    function updateChart(stats) {
+      const chartContainer = document.getElementById('chart');
+      
+      const chartData = [
+        { label: 'Open', high: stats.openHigh, medium: stats.openMedium, low: stats.openLow },
+        { label: 'In Progress', high: stats.progressHigh, medium: stats.progressMedium, low: stats.progressLow },
+        { label: 'Resolved', high: stats.resolvedHigh, medium: stats.resolvedMedium, low: stats.resolvedLow }
+      ];
+      
+      // Find the maximum total to scale all bars proportionally
+      const maxTotal = Math.max(...chartData.map(row => row.high + row.medium + row.low));
+      
+      chartContainer.innerHTML = '';
+      
+      chartData.forEach(row => {
+        const total = row.high + row.medium + row.low;
+        
+        // Calculate bar width as percentage of maximum
+        const barWidth = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+        
+        // Calculate segment widths within this bar
+        const highPct = total > 0 ? (row.high / total) * 100 : 0;
+        const mediumPct = total > 0 ? (row.medium / total) * 100 : 0;
+        const lowPct = total > 0 ? (row.low / total) * 100 : 0;
+        
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'chart-row';
+        
+        rowDiv.innerHTML = `
+          <div class="chart-label">${row.label}</div>
+          <div class="chart-bar-container">
+            <div style="display: flex; width: ${barWidth}%; height: 100%;">
+              ${row.high > 0 ? `<div class="chart-bar chart-bar-high" style="width: ${highPct}%">${row.high > 0 && highPct > 10 ? row.high : ''}</div>` : ''}
+              ${row.medium > 0 ? `<div class="chart-bar chart-bar-medium" style="width: ${mediumPct}%">${row.medium > 0 && mediumPct > 10 ? row.medium : ''}</div>` : ''}
+              ${row.low > 0 ? `<div class="chart-bar chart-bar-low" style="width: ${lowPct}%">${row.low > 0 && lowPct > 10 ? row.low : ''}</div>` : ''}
+            </div>
+            ${total === 0 ? '<div style="padding-left: 12px; font-size: 12px; color: #999; line-height: 32px;">No tickets</div>' : ''}
+          </div>
+        `;
+        
+        chartContainer.appendChild(rowDiv);
+      });
+    }
+    
+    function updateCategoryFilters() {
+      const categories = new Set();
+      allTickets.forEach(ticket => {
+        if (ticket.category && ticket.category.trim()) {
+          categories.add(ticket.category.trim());
+        }
+      });
+      
+      const categoryFilters = document.getElementById('category-filters');
+      const allButton = categoryFilters.querySelector('[data-category="all"]');
+      categoryFilters.innerHTML = '';
+      categoryFilters.appendChild(allButton);
+      
+      Array.from(categories).sort().forEach(category => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.setAttribute('data-category', category);
+        btn.textContent = category;
+        btn.onclick = () => filterByCategory(category);
+        categoryFilters.appendChild(btn);
+      });
+    }
+    
+    function renderTickets() {
+      ticketsBody.innerHTML = "";
+      
+      const filteredTickets = allTickets.filter(ticket => {
+        const statusMatch = activeStatusFilter === 'all' || ticket.status === activeStatusFilter;
+        const categoryMatch = activeCategoryFilter === 'all' || 
+                              (ticket.category && ticket.category.trim() === activeCategoryFilter);
+        const priorityMatch = activePriorityFilter === 'all' || ticket.priority === activePriorityFilter;
+        return statusMatch && categoryMatch && priorityMatch;
+      });
+      
+      if (filteredTickets.length === 0) {
+        const message = allTickets.length === 0 
+          ? 'No tickets yet. Create one above!' 
+          : 'No tickets match the selected filters.';
+        ticketsBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #999;">${message}</td></tr>`;
+        return;
+      }
+      
+      filteredTickets.forEach((ticket) => {
+        const tr = document.createElement("tr");
+        const statusClass = `status-${ticket.status.replace('_', '-')}`;
+        const priorityClass = `priority-${ticket.priority}`;
+        
+        tr.innerHTML = `
+          <td>${ticket.ticket_id}</td>
+          <td>${ticket.title}</td>
+          <td><span class="status-badge ${statusClass}">${ticket.status.replace('_', ' ')}</span></td>
+          <td class="${priorityClass}">${ticket.priority}</td>
+        `;
+        tr.onclick = () => selectTicket(ticket.ticket_id);
+        if (ticket.ticket_id === selectedTicketId) {
+          tr.classList.add('selected');
+        }
+        ticketsBody.appendChild(tr);
+      });
+    }
 
+    async function selectTicket(ticketId) {
+      selectedTicketId = ticketId;
+      
+      try {
+        // Load ticket details
+        const ticketResp = await fetch(`/tickets/${ticketId}`);
+        const ticket = await ticketResp.json();
+        
+        if (!ticketResp.ok) {
+          showResult("Error loading ticket: " + (ticket.error || ticketResp.statusText), true);
+          return;
+        }
+
+        // Update UI with ticket details
+        document.getElementById("detail-title").textContent = ticket.title;
+        document.getElementById("detail-meta").innerHTML = `
+          <strong>ID:</strong> #${ticket.ticket_id} &nbsp;|&nbsp; 
+          <strong>Priority:</strong> <span class="priority-${ticket.priority}">${ticket.priority}</span> &nbsp;|&nbsp;
+          <strong>Category:</strong> ${ticket.category || 'None'} &nbsp;|&nbsp;
+          <strong>Created by:</strong> ${ticket.created_by} &nbsp;|&nbsp;
+          <strong>Created:</strong> ${new Date(ticket.created_at).toLocaleString()}
+        `;
+        document.getElementById("detail-description").innerHTML = `
+          <strong>Description:</strong><br>
+          ${ticket.description || '<em style="color: #999;">No description provided</em>'}
+        `;
+        
+        // Set status dropdown
+        statusSelect.value = ticket.status;
+        
+        // Show detail section
+        document.getElementById("no-selection").classList.add("hidden");
+        document.getElementById("ticket-detail").classList.remove("hidden");
+        
+        // Load messages
+        await loadMessages(ticketId);
+        
+        // Update ticket list selection styling
+        loadTickets();
+      } catch (err) {
+        showResult("Failed to load ticket details: " + err, true);
+      }
+    }
+
+    async function loadMessages(ticketId) {
+      try {
+        const resp = await fetch(`/tickets/${ticketId}/messages`);
+        const messages = await resp.json();
+        
+        if (!resp.ok) {
+          console.error("Error loading messages:", messages.error || resp.statusText);
+          return;
+        }
+
+        const container = document.getElementById("messages-container");
+        
+        if (messages.length === 0) {
+          container.innerHTML = '<div class="no-messages">No messages yet. Be the first to comment!</div>';
+          return;
+        }
+
+        container.innerHTML = "";
+        messages.forEach((msg) => {
+          const msgDiv = document.createElement("div");
+          msgDiv.className = "message";
+          msgDiv.innerHTML = `
+            <div class="message-header">
+              <span class="message-author">${msg.author}</span> &bull; ${new Date(msg.created_at).toLocaleString()}
+            </div>
+            <div class="message-text">${msg.message_text}</div>
+          `;
+          container.appendChild(msgDiv);
+        });
+        
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+      } catch (err) {
+        console.error("Failed to load messages:", err);
+      }
+    }
+
+    function clearSelection() {
+      selectedTicketId = null;
+      document.getElementById("ticket-detail").classList.add("hidden");
+      document.getElementById("no-selection").classList.remove("hidden");
+      messageForm.reset();
+      loadTickets();
+    }
+
+    // Handle status change
+    statusSelect.addEventListener("change", async () => {
+      if (!selectedTicketId) return;
+      
+      const newStatus = statusSelect.value;
+      
+      try {
+        const resp = await fetch(`/tickets/${selectedTicketId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        const data = await resp.json();
+        
+        if (!resp.ok) {
+          showResult("Error updating status: " + (data.error || resp.statusText), true);
+          return;
+        }
+        
+        showResult("Ticket status updated successfully!", false);
+        loadTickets();
+        selectTicket(selectedTicketId);
+      } catch (err) {
+        showResult("Failed to update status: " + err, true);
+      }
+    });
+
+    // Handle message submission
+    messageForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      if (!selectedTicketId) return;
+      
+      const messageText = document.getElementById("message-text").value.trim();
+      
+      if (!messageText) {
+        showResult("Message cannot be empty", true);
+        return;
+      }
+      
+      try {
+        const resp = await fetch(`/tickets/${selectedTicketId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message_text: messageText })
+        });
+        const data = await resp.json();
+        
+        if (!resp.ok) {
+          showResult("Error adding message: " + (data.error || resp.statusText), true);
+          return;
+        }
+        
+        showResult("Message added successfully!", false);
+        messageForm.reset();
+        loadMessages(selectedTicketId);
+        loadTickets(); // Refresh to update updated_at timestamp
+      } catch (err) {
+        showResult("Failed to add message: " + err, true);
+      }
+    });
+
+    // Handle ticket creation
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       
@@ -151,6 +713,59 @@
       }
     });
 
+    // Filter handlers
+    function filterByStatus(status) {
+      activeStatusFilter = status;
+      
+      // Update button states
+      document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-status') === status);
+      });
+      
+      renderTickets();
+    }
+    
+    function filterByCategory(category) {
+      activeCategoryFilter = category;
+      
+      // Update button states
+      document.querySelectorAll('#category-filters .filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-category') === category);
+      });
+      
+      renderTickets();
+    }
+    
+    function filterByPriority(priority) {
+      activePriorityFilter = priority;
+      
+      // Update button states
+      document.querySelectorAll('#priority-filters .filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-priority') === priority);
+      });
+      
+      renderTickets();
+    }
+    
+    // Attach filter click handlers
+    document.getElementById('status-filters').addEventListener('click', (e) => {
+      if (e.target.classList.contains('filter-btn')) {
+        filterByStatus(e.target.getAttribute('data-status'));
+      }
+    });
+    
+    document.getElementById('category-filters').addEventListener('click', (e) => {
+      if (e.target.classList.contains('filter-btn')) {
+        filterByCategory(e.target.getAttribute('data-category'));
+      }
+    });
+    
+    document.getElementById('priority-filters').addEventListener('click', (e) => {
+      if (e.target.classList.contains('filter-btn')) {
+        filterByPriority(e.target.getAttribute('data-priority'));
+      }
+    });
+    
     // Load tickets on page load
     loadTickets();
   </script>
