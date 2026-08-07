@@ -1,45 +1,31 @@
-# Databricks Support Ticket Management App
+The most difficult part of this assignment was connecting the application to Lakebase and ensuring that all CRUD operations worked correctly after deployment. Unlike a traditional analytics table, Lakebase is designed for operational workloads, allowing the application to efficiently insert, update, and delete records while maintaining transactional consistency. Traditional analytics tables are primarily optimized for querying and reporting rather than powering live applications. If I were to extend this project, I would add ticket priority and filtering by status so users can more easily manage and track support requests.
 
-A Flask + Lakebase/PostgreSQL Databricks App for managing support tickets and their messages.
 
-## Features
+Link to Assignment: https://bootcamp-assignment-7474648829050174.aws.databricksapps.com/
 
-- Ticket list view
-- Ticket details with full message history
-- Create ticket
-- Add message to ticket
-- Update ticket status (`Open`, `In Progress`, `Resolved`)
-- Delete ticket with cascading message delete
-- Automatic table creation for `tickets` and `ticket_messages`
-- Automatic seed data (3 tickets, 2 messages each) when database is empty
 
-## Files
+# Bootcamp Day 1 Assignment – Support Ticket System
 
-- `app.py` - Flask routes + SQLAlchemy models (`tickets`, `ticket_messages`)
-- `lakebase.py` - Lakebase connection helper (`LAKEBASE_URL` env first, secret fallback)
-- `templates/index.html` - Support ticket management UI
-- `setup_secrets.py` - Optional script to store Lakebase URL in Databricks secrets
-- `app.yaml` - Databricks App command and env configuration
+## Databricks App URL
 
-## Environment variables
+https://bootcamp-assignment-7474648829050174.aws.databricksapps.com/
 
-- `LAKEBASE_URL` (recommended for local development)
-- `LAKEBASE_SECRET_SCOPE` (default: `database`)
-- `LAKEBASE_SECRET_KEY` (default: `lakebase-url`)
+## Source Code
 
-## Run locally
+The complete project source code is included in the submitted ZIP file.
 
-```bash
-pip install -r requirements.txt
-python app.py
-```
+## Screenshots
 
-## API endpoints
+The submission includes:
 
-- `GET /healthz`
-- `GET /tickets`
-- `POST /tickets`
-- `GET /tickets/<ticket_id>`
-- `POST /tickets/<ticket_id>/messages`
-- `PATCH /tickets/<ticket_id>/status`
-- `DELETE /tickets/<ticket_id>`
+* Screenshot of the deployed Databricks application.
+* Screenshot of the Lakebase database showing the `tickets` and `ticket_messages` tables with sample records.
+<img width="1237" height="837" alt="Screenshot 2026-08-07 165109" src="https://github.com/user-attachments/assets/f1109fea-7f45-4bab-b2e2-4d79f98daecf" />
+<img width="1067" height="852" alt="Screenshot 2026-08-07 165049" src="https://github.com/user-attachments/assets/e4e7f916-542d-4e4f-9952-f49b6e4170fc" />
+<img width="728" height="722" alt="Screenshot 2026-08-07 165134" src="https://github.com/user-attachments/assets/d66266eb-2e6d-42ff-88f9-1c9157cfc5b4" />
+<img width="1086" height="836" alt="Screenshot 2026-08-07 165116" src="https://github.com/user-attachments/assets/24d49e3a-a5be-41fe-be58-6aebd9409fc6" />
+<img width="1677" height="772" alt="image" src="https://github.com/user-attachments/assets/f91bbfb5-b757-4380-8160-a726b369d7bd" />
+
+## Reflection
+
+The most challenging part of this assignment was configuring the application to connect to Lakebase and ensuring that all CRUD operations worked correctly after deployment. Lakebase differs from a traditional analytics table because it is designed for transactional applications, making it suitable for creating, updating, and deleting records while maintaining consistency. In contrast, traditional analytics tables are optimized for analytical queries and reporting rather than operational workloads. If I were to continue developing this project, I would add ticket priority levels and filtering by status to make it easier for users to organize and manage support requests.
