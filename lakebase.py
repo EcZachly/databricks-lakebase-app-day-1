@@ -1,10 +1,8 @@
 """
 Lakebase (Databricks-managed Postgres) connection helper.
 
-Connects using a single LAKEBASE_URL (a standard Postgres connection URL,
-e.g. postgresql://role:password@host:5432/databricks_postgres?sslmode=require)
-pointing at a native Postgres role with a static, non-expiring password.
-This keeps setup to a single secret instead of five separate env vars.
+Reads the connection URL from LAKEBASE_URL when provided (local/dev) and
+falls back to Databricks secrets for app deployment.
 """
 
 import base64
@@ -23,7 +21,10 @@ _KEY = os.environ.get("LAKEBASE_SECRET_KEY", "lakebase-url")
 
 
 def _lakebase_url() -> str:
-    """Fetch and decode the Lakebase connection URL from the Databricks secret scope."""
+    """Fetch and decode the Lakebase connection URL."""
+    if os.environ.get("LAKEBASE_URL"):
+        return os.environ["LAKEBASE_URL"]
+
     secret = _w.secrets.get_secret(scope=_SCOPE, key=_KEY)
     return base64.b64decode(secret.value).decode("utf-8")
 
