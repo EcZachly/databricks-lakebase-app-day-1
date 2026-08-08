@@ -1,8 +1,8 @@
 """
-Databricks App boilerplate:
-- Serves a small Flask API
+Databricks App - Ticket Management System:
+- Serves a Flask API for ticket management
 - Reads/writes to Lakebase (Databricks-managed Postgres) via lakebase.py
-- Pulls data from the Massive API via massive_client.py and syncs it into Lakebase
+- Manages tickets and ticket_messages tables in tickets_mgmt database
 
 Run locally:
     python app.py
@@ -11,56 +11,46 @@ Deploy as a Databricks App using app.yaml.
 
 import logging
 import os
-import re
+from datetime import datetime
+from decimal import Decimal
 
-import requests
 from databricks.sdk import WorkspaceClient
 from flask import Flask, jsonify, render_template, request
+from flask.json.provider import DefaultJSONProvider
 
 import lakebase
-from massive_client import MassiveClient
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("massive-app")
+logger = logging.getLogger("ticket-app")
+
+
+class CustomJSONProvider(DefaultJSONProvider):
+    """Custom JSON provider to handle datetime and Decimal objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
 
 app = Flask(__name__)
+app.json = CustomJSONProvider(app)
 _w = WorkspaceClient()
 
-TABLE_NAME = os.environ.get("MASSIVE_TABLE_NAME", "massive_records")
-WATCHLIST_TABLE_NAME = os.environ.get("WATCHLIST_TABLE_NAME", "watchlist")
 
-# Basic stock ticker shape check: 1-10 uppercase letters, with an optional
-# ".X" or ".XX" share-class suffix (e.g. "BRK.B"). This rejects obviously
-# malformed input before we even call the Massive API.
-_TICKER_RE = re.compile(r"^[A-Z]{1,10}(\.[A-Z]{1,2})?$")
-
-
-def ensure_table():
-    """Create the destination table in Lakebase if it doesn't exist yet."""
-    lakebase.run_write(
-        f"""
-        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-            id TEXT PRIMARY KEY,
-            payload JSONB NOT NULL,
-            synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-        """
-    )
-
-
-def ensure_watchlist_table():
-    """Create the watchlist table in Lakebase if it doesn't exist yet."""
-    lakebase.run_write(
-        f"""
-        CREATE TABLE IF NOT EXISTS {WATCHLIST_TABLE_NAME} (
-            symbol TEXT NOT NULL,
-            email TEXT NOT NULL,
-            latest_price NUMERIC,
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            PRIMARY KEY (symbol, email)
-        )
-        """
-    )
+def ensure_tables():
+    """Ensure the tickets and ticket_messages tables exist.
+    
+    Note: Tables already exist with schema:
+    - tickets: ticket_id, title, status, priority, created_by, created_at, category
+    - ticket_messages: message_id, ticket_id, message_text, author, created_at
+    
+    We use SQL aliases in queries to map to frontend expectations (id, message, created_by).
+    """
+    # Tables already exist - just verify they're there
+    lakebase.run_query("SELECT 1 FROM tickets LIMIT 1")
+    lakebase.run_query("SELECT 1 FROM ticket_messages LIMIT 1")
 
 
 def _current_user_email() -> str:
@@ -75,6 +65,30 @@ def _current_user_email() -> str:
     if header_email:
         return header_email
     return _w.current_user.me().user_name
+
+
+def _to_db_format(value: str, field_type: str) -> str:
+    """Convert frontend format to database format.
+    
+    Frontend uses lowercase-with-hyphens: 'in-progress', 'open', 'medium'
+    Database uses UPPERCASE_WITH_UNDERSCORES: 'IN_PROGRESS', 'OPEN', 'MEDIUM'
+    """
+    if not value:
+        return value
+    # Replace hyphens with underscores and convert to uppercase
+    return value.replace('-', '_').upper()
+
+
+def _from_db_format(value: str) -> str:
+    """Convert database format to frontend format.
+    
+    Database uses UPPERCASE_WITH_UNDERSCORES: 'IN_PROGRESS', 'OPEN', 'MEDIUM'
+    Frontend uses lowercase-with-hyphens: 'in-progress', 'open', 'medium'
+    """
+    if not value:
+        return value
+    # Replace underscores with hyphens and convert to lowercase
+    return value.replace('_', '-').lower()
 
 
 @app.route("/healthz")
@@ -95,162 +109,301 @@ def handle_exception(err):
 
 @app.route("/")
 def index():
-    """Simple UI to submit a list of stock symbols to sync from Massive."""
+    """Ticket management UI."""
     return render_template("index.html")
 
 
-@app.route("/records")
-def list_records():
-    """Read records already synced into Lakebase."""
-    limit = int(request.args.get("limit", 100))
-    rows = lakebase.run_query(
-        f"SELECT id, payload, synced_at FROM {TABLE_NAME} ORDER BY synced_at DESC LIMIT %s",
-        (limit,),
+@app.route("/api/tickets", methods=["GET"])
+def get_tickets():
+    """Get all tickets with optional filtering and sorting."""
+    ensure_tables()
+    
+    status = request.args.get("status")
+    priority = request.args.get("priority")
+    category = request.args.get("category")
+    search = request.args.get("search")
+    sort_by = request.args.get("sort_by", "created_at")  # Default sort by created_at
+    sort_order = request.args.get("sort_order", "desc").lower()  # Default descending
+    
+    query = """
+        SELECT 
+            t.ticket_id as id, 
+            t.title, 
+            '' as description, 
+            t.status, 
+            t.priority, 
+            t.category, 
+            t.created_by, 
+            t.created_at, 
+            COALESCE(MAX(m.created_at), t.created_at) as updated_at
+        FROM tickets t
+        LEFT JOIN ticket_messages m ON t.ticket_id = m.ticket_id
+        WHERE 1=1
+    """
+    params = []
+    
+    if status:
+        query += " AND t.status = %s"
+        params.append(_to_db_format(status, 'status'))  # Convert to DB format
+    if priority:
+        query += " AND t.priority = %s"
+        params.append(_to_db_format(priority, 'priority'))  # Convert to DB format
+    if category:
+        query += " AND t.category = %s"
+        params.append(category)
+    if search:
+        query += " AND t.title ILIKE %s"
+        search_param = f"%{search}%"
+        params.append(search_param)
+    
+    # Group by ticket columns to support the MAX aggregate
+    query += " GROUP BY t.ticket_id, t.title, t.status, t.priority, t.category, t.created_by, t.created_at"
+    
+    # Validate and apply sorting
+    valid_sort_columns = {
+        "id": "t.ticket_id",
+        "created_at": "t.created_at",
+        "updated_at": "updated_at",  # Use the calculated updated_at from MAX
+        "title": "t.title",
+        "status": "t.status",
+        "priority": "t.priority"
+    }
+    
+    sort_column = valid_sort_columns.get(sort_by, "t.created_at")
+    sort_direction = "ASC" if sort_order == "asc" else "DESC"
+    
+    query += f" ORDER BY {sort_column} {sort_direction}"
+    
+    rows = lakebase.run_query(query, tuple(params) if params else None)
+    # Convert DB format back to frontend format
+    result = []
+    for row in rows:
+        ticket = dict(row)
+        ticket['status'] = _from_db_format(ticket['status'])
+        ticket['priority'] = _from_db_format(ticket['priority'])
+        result.append(ticket)
+    return jsonify(result)
+
+
+@app.route("/api/tickets/<int:ticket_id>", methods=["GET"])
+def get_ticket(ticket_id):
+    """Get a single ticket with its messages."""
+    ensure_tables()
+    
+    ticket = lakebase.run_query_one(
+        "SELECT ticket_id as id, title, '' as description, status, priority, category, created_by, created_at, created_at as updated_at FROM tickets WHERE ticket_id = %s",
+        (ticket_id,)
     )
-    return jsonify(rows)
-
-
-@app.route("/sync", methods=["POST"])
-def sync_from_massive():
-    """
-    Pull data from the Massive API (paginated, potentially huge dataset) and
-    upsert it into Lakebase in batches.
-    """
-    ensure_table()
-    client = MassiveClient()
-
-    path = request.json.get("path", "/records") if request.is_json else "/records"
-    batch_size = int(request.args.get("batch_size", 500))
-
-    batch = []
-    total = 0
-    for item in client.paginated_get(path):
-        batch.append(item)
-        if len(batch) >= batch_size:
-            total += _upsert_batch(batch)
-            batch = []
-
-    if batch:
-        total += _upsert_batch(batch)
-
-    return jsonify({"synced": total})
-
-
-@app.route("/watchlist", methods=["GET"])
-def get_watchlist():
-    """Return the current user's watchlist symbols, with their last known price."""
-    ensure_watchlist_table()
-    email = _current_user_email()
-    rows = lakebase.run_query(
-        f"SELECT symbol, email, latest_price, updated_at FROM {WATCHLIST_TABLE_NAME} "
-        f"WHERE email = %s ORDER BY symbol ASC",
-        (email,),
+    
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    
+    messages = lakebase.run_query(
+        "SELECT message_id as id, ticket_id, message_text as message, author as created_by, created_at FROM ticket_messages WHERE ticket_id = %s ORDER BY created_at ASC",
+        (ticket_id,)
     )
-    return jsonify(rows)
+    
+    # Convert DB format to frontend format
+    ticket_dict = dict(ticket)
+    ticket_dict['status'] = _from_db_format(ticket_dict['status'])
+    ticket_dict['priority'] = _from_db_format(ticket_dict['priority'])
+    
+    return jsonify({"ticket": ticket_dict, "messages": [dict(msg) for msg in messages]})
 
 
-@app.route("/watchlist", methods=["POST"])
-def add_to_watchlist():
-    """
-    Fetch the latest price for a single stock symbol from Massive using
-    exactly ONE API call (see MassiveClient.get_latest_price), then add/
-    update that symbol on the watchlist in Lakebase.
-    """
-    ensure_watchlist_table()
-
-    if request.is_json:
-        symbol = request.json.get("symbol", "")
-    else:
-        symbol = request.form.get("symbol", "")
-
-    symbol = symbol.strip().upper() if isinstance(symbol, str) else ""
-
-    if not symbol or not _TICKER_RE.match(symbol):
-        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
-
-    client = MassiveClient()
-    try:
-        data = client.get_latest_price(symbol)  # <-- single API call, latest price only
-    except requests.HTTPError:
-        # Massive returns a 404/4xx for tickers it doesn't recognize.
-        return jsonify({"error": f"Unknown ticker symbol: {symbol}"}), 400
-
-    price = _extract_latest_price(data)
-    if price is None:
-        # No usable price in the response (e.g. delisted/invalid ticker
-        # that still 200s with an empty result set) - don't add it.
-        return jsonify({"error": f"No price data available for ticker: {symbol}"}), 400
-
+@app.route("/api/tickets", methods=["POST"])
+def create_ticket():
+    """Create a new ticket."""
+    ensure_tables()
+    
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+    
+    data = request.json
+    title = data.get("title", "").strip()
+    # Note: description field doesn't exist in DB, ignored
+    status = data.get("status", "open").strip()
+    priority = data.get("priority", "medium").strip()
+    category = data.get("category", "").strip()
+    
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    
+    if status not in ["open", "in-progress", "resolved", "closed"]:
+        return jsonify({"error": "Invalid status"}), 400
+    
+    if priority not in ["low", "medium", "high", "critical"]:
+        return jsonify({"error": "Invalid priority"}), 400
+    
     email = _current_user_email()
-
-    lakebase.run_write(
-        f"""
-        INSERT INTO {WATCHLIST_TABLE_NAME} (symbol, email, latest_price, updated_at)
-        VALUES (%s, %s, %s, now())
-        ON CONFLICT (symbol, email) DO UPDATE
-            SET latest_price = EXCLUDED.latest_price,
-                updated_at = EXCLUDED.updated_at
+    
+    # Convert to DB format before inserting
+    db_status = _to_db_format(status, 'status')
+    db_priority = _to_db_format(priority, 'priority')
+    
+    ticket = lakebase.run_write_returning(
+        """
+        INSERT INTO tickets (title, status, priority, category, created_by, created_at)
+        VALUES (%s, %s, %s, %s, %s, CURRENT_DATE)
+        RETURNING ticket_id as id, title, '' as description, status, priority, category, created_by, created_at, created_at as updated_at
         """,
-        (symbol, email, price),
+        (title, db_status, db_priority, category or None, email)
     )
-
-    return jsonify({"symbol": symbol, "email": email, "latest_price": price})
-
-
-def _extract_latest_price(data: dict) -> float | None:
-    """Pull the trade price out of the Massive 'previous close' response shape.
-
-    The /v2/aggs/ticker/{symbol}/prev endpoint returns "results" as a LIST
-    containing a single aggregate bar (not a dict), e.g.:
-        {"status": "OK", "resultsCount": 1, "results": [{"c": 148.845, ...}]}
-    Previously this code treated "results" as a dict, so isinstance(results, dict)
-    was always False for this endpoint's real shape and the price silently
-    resolved to None. Unwrap the list here, and check "status"/"resultsCount"
-    so invalid tickers (empty results) are detected instead of "succeeding"
-    with a null price.
-
-    Adjust the key lookup here if the real Massive API returns a different
-    field name for the traded/close price.
-    """
-    if not isinstance(data, dict):
-        return None
-    if data.get("status") not in (None, "OK") or data.get("resultsCount") == 0:
-        return None
-    results = data.get("results", data)
-    if isinstance(results, list):
-        results = results[0] if results else None
-    if isinstance(results, dict):
-        for key in ("c", "p", "price", "last_price", "vw"):
-            if key in results:
-                return results[key]
-    return None
+    
+    # Convert back to frontend format
+    ticket_dict = dict(ticket)
+    ticket_dict['status'] = _from_db_format(ticket_dict['status'])
+    ticket_dict['priority'] = _from_db_format(ticket_dict['priority'])
+    
+    return jsonify(ticket_dict), 201
 
 
-def _upsert_batch(items: list[dict]) -> int:
-    """Upsert a batch of Massive API items into Lakebase, one statement per row.
+@app.route("/api/tickets/<int:ticket_id>", methods=["PUT"])
+def update_ticket(ticket_id):
+    """Update an existing ticket."""
+    ensure_tables()
+    
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+    
+    data = request.json
+    
+    # Build dynamic update query
+    updates = []
+    params = []
+    
+    if "title" in data:
+        title = data["title"].strip()
+        if not title:
+            return jsonify({"error": "Title cannot be empty"}), 400
+        updates.append("title = %s")
+        params.append(title)
+    
+    # Note: description field doesn't exist in DB, ignored
+    
+    if "status" in data:
+        status = data["status"].strip()
+        if status not in ["open", "in-progress", "resolved", "closed"]:
+            return jsonify({"error": "Invalid status"}), 400
+        updates.append("status = %s")
+        params.append(_to_db_format(status, 'status'))  # Convert to DB format
+    
+    if "priority" in data:
+        priority = data["priority"].strip()
+        if priority not in ["low", "medium", "high", "critical"]:
+            return jsonify({"error": "Invalid priority"}), 400
+        updates.append("priority = %s")
+        params.append(_to_db_format(priority, 'priority'))  # Convert to DB format
+    
+    if "category" in data:
+        updates.append("category = %s")
+        params.append(data["category"].strip() or None)
+    
+    if not updates:
+        return jsonify({"error": "No fields to update"}), 400
+    
+    params.append(ticket_id)
+    
+    query = f"UPDATE tickets SET {', '.join(updates)} WHERE ticket_id = %s RETURNING ticket_id as id, title, '' as description, status, priority, category, created_by, created_at, created_at as updated_at"
+    
+    ticket = lakebase.run_write_returning(query, tuple(params))
+    
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    
+    # Convert back to frontend format
+    ticket_dict = dict(ticket)
+    ticket_dict['status'] = _from_db_format(ticket_dict['status'])
+    ticket_dict['priority'] = _from_db_format(ticket_dict['priority'])
+    
+    return jsonify(ticket_dict)
 
-    For very large batches, consider psycopg2.extras.execute_values for
-    higher throughput instead of per-row execute calls.
-    """
-    import json as _json
 
-    count = 0
-    with lakebase.get_connection() as conn:
-        with conn.cursor() as cur:
-            for item in items:
-                cur.execute(
-                    f"""
-                    INSERT INTO {TABLE_NAME} (id, payload, synced_at)
-                    VALUES (%s, %s, now())
-                    ON CONFLICT (id) DO UPDATE
-                        SET payload = EXCLUDED.payload,
-                            synced_at = EXCLUDED.synced_at
-                    """,
-                    (str(item.get("id")), _json.dumps(item)),
-                )
-                count += 1
-            conn.commit()
-    return count
+@app.route("/api/tickets/<int:ticket_id>", methods=["DELETE"])
+def delete_ticket(ticket_id):
+    """Delete a ticket and its messages."""
+    ensure_tables()
+    
+    # First verify the ticket exists
+    ticket = lakebase.run_query_one(
+        "SELECT ticket_id FROM tickets WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    
+    # Delete all messages first (to satisfy foreign key constraint)
+    lakebase.run_write(
+        "DELETE FROM ticket_messages WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    
+    # Now delete the ticket
+    lakebase.run_write(
+        "DELETE FROM tickets WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    
+    return jsonify({"success": True})
+
+
+@app.route("/api/tickets/<int:ticket_id>/messages", methods=["POST"])
+def add_message(ticket_id):
+    """Add a message to a ticket."""
+    ensure_tables()
+    
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 400
+    
+    data = request.json
+    message = data.get("message", "").strip()
+    
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+    
+    # Verify ticket exists
+    ticket = lakebase.run_query_one(
+        "SELECT ticket_id FROM tickets WHERE ticket_id = %s",
+        (ticket_id,)
+    )
+    
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    
+    email = _current_user_email()
+    
+    msg = lakebase.run_write_returning(
+        """
+        INSERT INTO ticket_messages (ticket_id, message_text, author, created_at)
+        VALUES (%s, %s, %s, CURRENT_DATE)
+        RETURNING message_id as id, ticket_id, message_text as message, author as created_by, created_at
+        """,
+        (ticket_id, message, email)
+    )
+    
+    return jsonify(dict(msg)), 201
+
+
+@app.route("/api/statistics", methods=["GET"])
+def get_statistics():
+    """Get ticket statistics."""
+    ensure_tables()
+    
+    stats = lakebase.run_query_one(
+        """
+        SELECT
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE status = 'OPEN') as open,
+            COUNT(*) FILTER (WHERE status = 'IN_PROGRESS') as in_progress,
+            COUNT(*) FILTER (WHERE status = 'RESOLVED') as resolved,
+            COUNT(*) FILTER (WHERE status = 'CLOSED') as closed,
+            COUNT(*) FILTER (WHERE priority = 'CRITICAL') as critical
+        FROM tickets
+        """
+    )
+    
+    return jsonify(dict(stats) if stats else {})
 
 
 if __name__ == '__main__':
