@@ -1,8 +1,8 @@
 """
-Lakebase (Databricks-managed Postgres) connection helper.
+Lakebase (Databricks-managed Postgres) connection helper for tickets_mgmt database.
 
 Connects using a single LAKEBASE_URL (a standard Postgres connection URL,
-e.g. postgresql://role:password@host:5432/databricks_postgres?sslmode=require)
+e.g. postgresql://role:password@host:5432/tickets_mgmt?sslmode=require)
 pointing at a native Postgres role with a static, non-expiring password.
 This keeps setup to a single secret instead of five separate env vars.
 """
@@ -58,3 +58,20 @@ def run_write(sql: str, params: tuple | dict | None = None) -> int:
             cur.execute(sql, params)
             conn.commit()
             return cur.rowcount
+
+
+def run_query_one(sql: str, params: tuple | dict | None = None) -> dict | None:
+    """Run a read query and return a single row as dict, or None if no rows."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.fetchone()
+
+
+def run_write_returning(sql: str, params: tuple | dict | None = None) -> dict | None:
+    """Run an INSERT/UPDATE/DELETE with RETURNING clause, commit, and return the row."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            conn.commit()
+            return cur.fetchone()
