@@ -312,7 +312,9 @@ def handle_exception(err):
     status_code = getattr(err, "code", 500)
     if not isinstance(status_code, int):
         status_code = 500
-    return jsonify({"error": str(err)}), status_code
+    if status_code >= 500:
+        return jsonify({"error": "Internal server error"}), status_code
+    return jsonify({"error": "Request failed"}), status_code
 
 
 @app.route("/")
@@ -469,7 +471,8 @@ def sync_weather_documents():
             docs = _weather_client.fetch_documents_for_location(location=location, limit=limit)
             all_docs.extend(docs)
         except WeatherClientError as err:
-            failures.append({"location": location, "error": str(err)})
+            logger.warning("Weather sync failed for location '%s': %s", location, err)
+            failures.append({"location": location, "error": "Weather data fetch failed for location"})
 
     if not all_docs and failures:
         return jsonify({"error": "Weather sync failed", "details": failures}), 502
@@ -509,10 +512,7 @@ def search_weather_documents():
         return jsonify({"error": "top_k must be an integer"}), 400
 
     if _weather_embedding_model is None:
-        message = "Weather embedding model is unavailable"
-        if _weather_model_error:
-            message = f"{message}: {_weather_model_error}"
-        return jsonify({"error": message}), 500
+        return jsonify({"error": "Weather embedding model is unavailable"}), 500
 
     top_k = min(max(top_k, 1), 20)
 

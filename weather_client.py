@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -80,12 +79,16 @@ class WeatherClient:
 
     @staticmethod
     def _parse_latlon(text: str) -> tuple[float, float] | None:
-        match = re.fullmatch(r"\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*", text)
-        if not match:
+        parts = [part.strip() for part in text.split(",")]
+        if len(parts) != 2:
             return None
 
-        lat = float(match.group(1))
-        lon = float(match.group(2))
+        try:
+            lat = float(parts[0])
+            lon = float(parts[1])
+        except ValueError:
+            return None
+
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             raise WeatherClientError(f"Invalid latitude/longitude: {text}")
         return lat, lon
