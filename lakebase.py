@@ -59,3 +59,57 @@ def run_write(sql: str, params: tuple | dict | None = None) -> int:
             cur.execute(sql, params)
             conn.commit()
             return cur.rowcount
+
+
+def ensure_weather_schema() -> None:
+    """Create weather tables/indexes needed for ingestion and semantic search."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS weather_documents (
+                    id TEXT PRIMARY KEY,
+                    location TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    headline TEXT,
+                    narrative_text TEXT NOT NULL,
+                    issued_at TIMESTAMPTZ,
+                    effective_at TIMESTAMPTZ,
+                    payload JSONB NOT NULL,
+                    synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS weather_embeddings (
+                    id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL REFERENCES weather_documents(id) ON DELETE CASCADE,
+                    chunk_index INTEGER NOT NULL,
+                    chunk_text TEXT NOT NULL,
+                    embedding vector(384) NOT NULL,
+                    model_name TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_weather_embeddings_document_chunk ON weather_embeddings (document_id, chunk_index)"
+            )
+            conn.commit()
+
+            try:
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_weather_embeddings_embedding_cosine ON weather_embeddings USING hnsw (embedding vector_cosine_ops)"
+                )
+                conn.commit()
+            except psycopg2.Error:
+                conn.rollback()
+                try:
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_weather_embeddings_embedding_cosine_ivf ON weather_embeddings USING ivfflat (embedding vector_cosine_ops)"
+                    )
+                    conn.commit()
+                except psycopg2.Error:
+                    conn.rollback()
