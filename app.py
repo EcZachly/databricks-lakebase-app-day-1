@@ -1,12 +1,18 @@
+import json
 import logging
 import os
 from datetime import datetime
 
+import psycopg2
 from flask import Flask, jsonify, render_template, request
+from psycopg2.extras import execute_values
+from sentence_transformers import SentenceTransformer
 from sqlalchemy import DateTime, ForeignKey, String, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, selectinload, sessionmaker
+from werkzeug.exceptions import BadRequest
 
 import lakebase
+from weather_client import WeatherClient, WeatherClientError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("support-ticket-app")
@@ -14,6 +20,7 @@ logger = logging.getLogger("support-ticket-app")
 app = Flask(__name__)
 
 VALID_STATUSES = {"Open", "In Progress", "Resolved"}
+WEATHER_EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 class Base(DeclarativeBase):
@@ -58,6 +65,15 @@ class TicketMessage(Base):
 ENGINE = lakebase.get_engine()
 SessionLocal = sessionmaker(bind=ENGINE, expire_on_commit=False)
 _initialized = False
+
+_weather_client = WeatherClient()
+_weather_model_error: str | None = None
+try:
+    _weather_embedding_model = SentenceTransformer(WEATHER_EMBEDDING_MODEL_NAME)
+except Exception as err:  # pragma: no cover
+    _weather_embedding_model = None
+    _weather_model_error = str(err)
+    logger.exception("Failed to load weather embedding model")
 
 
 SEED_TICKETS = [
@@ -129,12 +145,68 @@ def _serialize_message(message: TicketMessage) -> dict:
     }
 
 
+def ensure_weather_schema() -> None:
+    with lakebase.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS weather_documents (
+                    id TEXT PRIMARY KEY,
+                    location TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    headline TEXT,
+                    narrative_text TEXT NOT NULL,
+                    issued_at TIMESTAMPTZ,
+                    effective_at TIMESTAMPTZ,
+                    payload JSONB NOT NULL,
+                    synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS weather_embeddings (
+                    id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL REFERENCES weather_documents(id) ON DELETE CASCADE,
+                    chunk_index INTEGER NOT NULL,
+                    chunk_text TEXT NOT NULL,
+                    embedding vector(384) NOT NULL,
+                    model_name TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_weather_embeddings_document_chunk ON weather_embeddings (document_id, chunk_index)"
+            )
+            conn.commit()
+
+            try:
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_weather_embeddings_embedding_cosine ON weather_embeddings USING hnsw (embedding vector_cosine_ops)"
+                )
+                conn.commit()
+            except psycopg2.Error:
+                conn.rollback()
+                logger.warning("HNSW index creation failed; trying ivfflat cosine index")
+                try:
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_weather_embeddings_embedding_cosine_ivf ON weather_embeddings USING ivfflat (embedding vector_cosine_ops)"
+                    )
+                    conn.commit()
+                except psycopg2.Error:
+                    conn.rollback()
+                    logger.warning("Unable to create vector similarity index")
+
+
 def ensure_database_ready() -> None:
     global _initialized
     if _initialized:
         return
 
     Base.metadata.create_all(bind=ENGINE)
+    ensure_weather_schema()
 
     with SessionLocal() as session:
         ticket_count = session.scalar(select(func.count()).select_from(Ticket)) or 0
@@ -164,9 +236,74 @@ def _validate_status(status: str | None) -> str | None:
     return None
 
 
+def _parse_json_body() -> dict:
+    payload = request.get_json(silent=False)
+    if payload is None or not isinstance(payload, dict):
+        raise BadRequest("Request body must be a JSON object")
+    return payload
+
+
+def _embedding_to_vector_literal(values: list[float]) -> str:
+    return "[" + ",".join(f"{float(value):.8f}" for value in values) + "]"
+
+
+def _upsert_weather_documents(documents: list[dict]) -> int:
+    if not documents:
+        return 0
+
+    values = [
+        (
+            doc["id"],
+            doc["location"],
+            doc["source_type"],
+            doc.get("headline") or "",
+            doc["narrative_text"],
+            doc.get("issued_at"),
+            doc.get("effective_at"),
+            doc.get("payload") if isinstance(doc.get("payload"), str) else json.dumps(doc.get("payload") or {}),
+            doc.get("synced_at") or datetime.utcnow(),
+        )
+        for doc in documents
+    ]
+
+    sql = """
+        INSERT INTO weather_documents (
+            id, location, source_type, headline, narrative_text,
+            issued_at, effective_at, payload, synced_at
+        ) VALUES %s
+        ON CONFLICT (id) DO UPDATE SET
+            location = EXCLUDED.location,
+            source_type = EXCLUDED.source_type,
+            headline = EXCLUDED.headline,
+            narrative_text = EXCLUDED.narrative_text,
+            issued_at = EXCLUDED.issued_at,
+            effective_at = EXCLUDED.effective_at,
+            payload = EXCLUDED.payload,
+            synced_at = EXCLUDED.synced_at
+    """
+
+    with lakebase.get_connection() as conn:
+        with conn.cursor() as cur:
+            execute_values(
+                cur,
+                sql,
+                values,
+                template="(%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)",
+            )
+            conn.commit()
+
+    return len(values)
+
+
 @app.route("/healthz")
 def healthz():
     return jsonify({"status": "ok"})
+
+
+@app.errorhandler(BadRequest)
+def handle_bad_request(err):
+    message = getattr(err, "description", None) or "Invalid JSON request"
+    return jsonify({"error": message}), 400
 
 
 @app.errorhandler(Exception)
@@ -175,7 +312,9 @@ def handle_exception(err):
     status_code = getattr(err, "code", 500)
     if not isinstance(status_code, int):
         status_code = 500
-    return jsonify({"error": str(err)}), status_code
+    if status_code >= 500:
+        return jsonify({"error": "Internal server error"}), status_code
+    return jsonify({"error": "Request failed"}), status_code
 
 
 @app.route("/")
@@ -297,6 +436,132 @@ def delete_ticket(ticket_id: int):
         session.delete(ticket)
         session.commit()
         return jsonify({"deleted": True, "ticket_id": ticket_id})
+
+
+@app.route("/weather/sync", methods=["POST"])
+def sync_weather_documents():
+    ensure_database_ready()
+
+    try:
+        payload = _parse_json_body()
+    except BadRequest as err:
+        return jsonify({"error": getattr(err, "description", "Invalid JSON")}), 400
+
+    locations = payload.get("locations")
+    if not isinstance(locations, list) or not locations:
+        return jsonify({"error": "locations must be a non-empty array"}), 400
+
+    cleaned_locations = [loc.strip() for loc in locations if isinstance(loc, str) and loc.strip()]
+    if not cleaned_locations or len(cleaned_locations) != len(locations):
+        return jsonify({"error": "each location must be a non-empty string"}), 400
+
+    limit_raw = payload.get("limit", 50)
+    try:
+        limit = int(limit_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "limit must be an integer"}), 400
+    if limit < 1:
+        return jsonify({"error": "limit must be at least 1"}), 400
+
+    all_docs: list[dict] = []
+    failures: list[dict[str, str]] = []
+
+    for location in cleaned_locations:
+        try:
+            docs = _weather_client.fetch_documents_for_location(location=location, limit=limit)
+            all_docs.extend(docs)
+        except WeatherClientError as err:
+            logger.warning("Weather sync failed for location '%s': %s", location, err)
+            failures.append({"location": location, "error": "Weather data fetch failed for location"})
+
+    if not all_docs and failures:
+        return jsonify({"error": "Weather sync failed", "details": failures}), 502
+
+    try:
+        synced = _upsert_weather_documents(all_docs)
+    except psycopg2.Error:
+        logger.exception("Weather document upsert failed")
+        return jsonify({"error": "Database error while syncing weather documents"}), 500
+
+    response = {
+        "message": "Weather sync completed",
+        "documents_synced": synced,
+    }
+    if failures:
+        response["warnings"] = failures
+    return jsonify(response)
+
+
+@app.route("/weather/search", methods=["POST"])
+def search_weather_documents():
+    ensure_database_ready()
+
+    try:
+        payload = _parse_json_body()
+    except BadRequest as err:
+        return jsonify({"error": getattr(err, "description", "Invalid JSON")}), 400
+
+    query = payload.get("query")
+    if not isinstance(query, str) or not query.strip():
+        return jsonify({"error": "query is required and must be a non-empty string"}), 400
+
+    top_k_raw = payload.get("top_k", 5)
+    try:
+        top_k = int(top_k_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "top_k must be an integer"}), 400
+
+    if _weather_embedding_model is None:
+        return jsonify({"error": "Weather embedding model is unavailable"}), 500
+
+    top_k = min(max(top_k, 1), 20)
+
+    try:
+        vector = _weather_embedding_model.encode([query.strip()], normalize_embeddings=True)[0]
+    except Exception:
+        logger.exception("Weather query embedding failed")
+        return jsonify({"error": "Failed to embed query"}), 500
+
+    vector_literal = _embedding_to_vector_literal(vector.tolist())
+
+    sql = """
+        SELECT
+            d.id,
+            d.location,
+            d.headline,
+            d.narrative_text,
+            e.chunk_text,
+            1 - (e.embedding <=> %s::vector) AS similarity
+        FROM weather_embeddings e
+        JOIN weather_documents d ON d.id = e.document_id
+        ORDER BY e.embedding <=> %s::vector
+        LIMIT %s
+    """
+
+    try:
+        rows = lakebase.run_query(sql, (vector_literal, vector_literal, top_k))
+    except psycopg2.Error:
+        logger.exception("Weather vector search failed")
+        return jsonify({"error": "Database error while searching weather embeddings"}), 500
+
+    if not rows:
+        return jsonify({"results": [], "message": "No weather embeddings found. Run /weather/sync and ingest_weather_embeddings first."})
+
+    return jsonify(
+        {
+            "results": [
+                {
+                    "id": row["id"],
+                    "location": row["location"],
+                    "headline": row["headline"],
+                    "narrative_text": row["narrative_text"],
+                    "chunk_text": row["chunk_text"],
+                    "similarity": float(row["similarity"]) if row["similarity"] is not None else None,
+                }
+                for row in rows
+            ]
+        }
+    )
 
 
 if __name__ == "__main__":
