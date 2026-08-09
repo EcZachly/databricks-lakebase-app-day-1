@@ -45,6 +45,8 @@ Embedding ingestion uses:
 - `CHUNK_SIZE = 800`
 - `CHUNK_OVERLAP = 100`
 
+Chunking is used so long forecast/alert narratives are split into semantically focused text windows that improve retrieval relevance while keeping each embedding manageable.
+
 ## 5) Embedding model
 
 Both ingestion and search use:
@@ -53,9 +55,34 @@ Both ingestion and search use:
 
 This model generates 384-dimensional vectors, matching `embedding vector(384)`.
 
-## 6) How to run the pipeline
+## 6) End-to-end pipeline
 
-1. Sync weather documents:
+NWS API  
+↓  
+`POST /weather/sync`  
+↓  
+`weather_documents`  
+↓  
+`notebooks/ingest_weather_embeddings.py`  
+↓  
+`sentence-transformers/all-MiniLM-L6-v2`  
+↓  
+`weather_embeddings`  
+↓  
+`POST /weather/search`  
+↓  
+semantic search
+
+## 7) How to run the pipeline
+
+1. Start the Flask app:
+
+```bash
+export FLASK_APP=app.py
+flask run --host=0.0.0.0 --port=8000
+```
+
+2. Sync weather documents:
 
 ```bash
 curl -X POST http://localhost:8000/weather/sync \
@@ -63,13 +90,13 @@ curl -X POST http://localhost:8000/weather/sync \
   -d '{"locations":["Chicago, IL","Austin, TX"],"limit":50}'
 ```
 
-2. Generate and store embeddings:
+3. Generate and store embeddings:
 
 ```bash
 python notebooks/ingest_weather_embeddings.py
 ```
 
-3. Run semantic search:
+4. Run semantic search:
 
 ```bash
 curl -X POST http://localhost:8000/weather/search \
@@ -77,7 +104,7 @@ curl -X POST http://localhost:8000/weather/search \
   -d '{"query":"risk of flooding near rivers","top_k":5}'
 ```
 
-## 7) Example API requests
+## 8) Example API requests
 
 ### Sync request
 
@@ -121,7 +148,7 @@ curl -X POST http://localhost:8000/weather/search \
 }
 ```
 
-## 8) Known limitations and possible improvements
+## 9) Known limitations and possible improvements
 
 - City/state resolution currently depends on external geocoding quality.
 - Forecast and alert polling is request-driven; no scheduler is included.

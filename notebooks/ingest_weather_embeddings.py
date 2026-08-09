@@ -36,49 +36,14 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return chunks
 
 
-def ensure_weather_schema() -> None:
-    with lakebase.get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS weather_documents (
-                    id TEXT PRIMARY KEY,
-                    location TEXT NOT NULL,
-                    source_type TEXT NOT NULL,
-                    headline TEXT,
-                    narrative_text TEXT NOT NULL,
-                    issued_at TIMESTAMPTZ,
-                    effective_at TIMESTAMPTZ,
-                    payload JSONB NOT NULL,
-                    synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS weather_embeddings (
-                    id TEXT PRIMARY KEY,
-                    document_id TEXT NOT NULL REFERENCES weather_documents(id) ON DELETE CASCADE,
-                    chunk_index INTEGER NOT NULL,
-                    chunk_text TEXT NOT NULL,
-                    embedding vector(384) NOT NULL,
-                    model_name TEXT NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-                """
-            )
-            cur.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_weather_embeddings_document_chunk ON weather_embeddings (document_id, chunk_index)"
-            )
-            conn.commit()
-
-
 def fetch_weather_documents() -> list[dict]:
     sql = """
         SELECT d.id, d.narrative_text
         FROM weather_documents d
+        LEFT JOIN weather_embeddings e ON e.document_id = d.id
         WHERE COALESCE(d.narrative_text, '') <> ''
+        GROUP BY d.id, d.narrative_text
+        HAVING COUNT(e.id) = 0
     """
     return lakebase.run_query(sql)
 
@@ -115,7 +80,7 @@ def insert_embeddings(rows: list[tuple]) -> int:
 
 
 def main() -> None:
-    ensure_weather_schema()
+    lakebase.ensure_weather_schema()
 
     docs = fetch_weather_documents()
     if not docs:
