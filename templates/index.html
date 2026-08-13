@@ -217,6 +217,46 @@
     .btn-delete:hover { background: #fee2e2; border-color: #fca5a5; }
     .btn-delete:disabled { opacity: 0.5; cursor: default; }
 
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .btn-news {
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent-dark);
+      background: var(--accent-soft);
+      border: 1px solid #c7d2fe;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .btn-news:hover { background: #e0e7ff; }
+    .btn-news:disabled { opacity: 0.5; cursor: default; }
+
+    .news-row td {
+      background: #fafbff;
+      padding: 16px 20px;
+    }
+
+    .news-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .news-item {
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .news-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .news-title { font-size: 14px; font-weight: 600; line-height: 1.4; }
+    .news-title a { color: var(--accent-dark); text-decoration: none; }
+    .news-title a:hover { text-decoration: underline; }
+
     .empty-row td {
       text-align: center;
       color: var(--muted);
@@ -472,7 +512,10 @@
             `<td class="price"><span class="price-value">${price}${changeBadgeHtml(row)}</span>${ohlcLine}</td>` +
             `<td>${spark}</td>` +
             `<td>${updated}</td>` +
-            `<td class="actions"><button type="button" class="btn-delete" data-symbol="${row.symbol}">Remove</button></td>`;
+            `<td class="actions"><div class="action-buttons">` +
+            `<button type="button" class="btn-news" data-symbol="${row.symbol}">News</button>` +
+            `<button type="button" class="btn-delete" data-symbol="${row.symbol}">Remove</button>` +
+            `</div></td>`;
           watchlistBody.appendChild(tr);
         });
       } catch (err) {
@@ -535,11 +578,96 @@
       }
     }
 
+    // Massive's news response shape isn't fixed here, so read a few
+    // plausible field names defensively (mirrors the backend's caching
+    // approach of storing the raw response and letting callers pick).
+    function extractNewsItems(news) {
+      if (!news) return [];
+      const results = Array.isArray(news.results)
+        ? news.results
+        : Array.isArray(news)
+        ? news
+        : [];
+      return results.slice(0, 5).map((item) => ({
+        title: item.title || item.headline || "Untitled",
+        source: (item.publisher && (item.publisher.name || item.publisher)) || item.source || null,
+        url: item.article_url || item.url || item.link || null,
+        published: item.published_utc || item.published_at || item.date || null,
+      }));
+    }
+
+    function renderNewsList(items) {
+      if (!items.length) {
+        return `<div class="sub">No recent news found for this symbol.</div>`;
+      }
+      return (
+        `<div class="news-list">` +
+        items
+          .map((n) => {
+            const date = n.published ? new Date(n.published).toLocaleDateString() : "";
+            const meta = [n.source, date].filter(Boolean).join(" \u00b7 ");
+            const titleHtml = n.url
+              ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer">${n.title}</a>`
+              : n.title;
+            return `<div class="news-item"><div class="news-title">${titleHtml}</div>${
+              meta ? `<div class="sub">${meta}</div>` : ""
+            }</div>`;
+          })
+          .join("") +
+        `</div>`
+      );
+    }
+
+    async function toggleNews(symbol, button, row) {
+      const existing = row.nextElementSibling;
+      if (existing && existing.classList.contains("news-row") && existing.dataset.symbol === symbol) {
+        existing.remove();
+        button.textContent = "News";
+        return;
+      }
+
+      // Keep the UI tidy - only one news panel open at a time.
+      document.querySelectorAll(".news-row").forEach((el) => el.remove());
+      document.querySelectorAll(".btn-news").forEach((btn) => (btn.textContent = "News"));
+
+      button.disabled = true;
+      button.textContent = "Loading...";
+
+      try {
+        const resp = await fetch(`/watchlist/${encodeURIComponent(symbol)}/news`);
+        const data = await resp.json();
+        button.disabled = false;
+
+        if (!resp.ok) {
+          setResult("Error loading news: " + (data.error || resp.statusText), "error");
+          button.textContent = "News";
+          return;
+        }
+
+        const items = extractNewsItems(data.news);
+        const newsRow = document.createElement("tr");
+        newsRow.className = "news-row";
+        newsRow.dataset.symbol = symbol;
+        newsRow.innerHTML = `<td colspan="6">${renderNewsList(items)}</td>`;
+        row.after(newsRow);
+        button.textContent = "Hide news";
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = "News";
+        setResult("Failed to load news for " + symbol + ": " + err, "error");
+      }
+    }
+
     watchlistBody.addEventListener("click", (e) => {
-      const button = e.target.closest(".btn-delete");
-      if (!button) return;
-      const symbol = button.dataset.symbol;
-      deleteSymbol(symbol, button);
+      const deleteBtn = e.target.closest(".btn-delete");
+      if (deleteBtn) {
+        deleteSymbol(deleteBtn.dataset.symbol, deleteBtn);
+        return;
+      }
+      const newsBtn = e.target.closest(".btn-news");
+      if (newsBtn) {
+        toggleNews(newsBtn.dataset.symbol, newsBtn, newsBtn.closest("tr"));
+      }
     });
 
     loadWatchlist({ showLoading: true });

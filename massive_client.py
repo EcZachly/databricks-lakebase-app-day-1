@@ -108,3 +108,12 @@ class MassiveClient:
         return self.get(
             f"/v2/aggs/ticker/{symbol}/range/1/day/{start.isoformat()}/{end.isoformat()}"
         )
+
+    def get_ticker_news(self, symbol: str, limit: int = 5) -> dict:
+        """
+        Fetch recent news headlines for a single symbol in ONE API call.
+        Meant to be called on-demand (e.g. when a user expands a "News"
+        panel for a watchlist row) rather than pre-fetched for every symbol,
+        and cached by the caller.
+        """
+        return self.get("/v2/reference/news", params={"ticker": symbol, "limit": limit})

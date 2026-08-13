@@ -34,6 +34,11 @@ WATCHLIST_TABLE_NAME = os.environ.get("WATCHLIST_TABLE_NAME", "watchlist")
 # most once per _DETAILS_MAX_AGE_HOURS rather than on every watchlist add.
 DETAILS_TABLE_NAME = os.environ.get("TICKER_DETAILS_TABLE_NAME", "ticker_details")
 _DETAILS_MAX_AGE_HOURS = int(os.environ.get("TICKER_DETAILS_MAX_AGE_HOURS", 24))
+# Per-symbol cache of news headlines, fetched on demand only (not pre-loaded
+# with the rest of the watchlist) and refreshed more often than profile/
+# history since news changes faster.
+NEWS_TABLE_NAME = os.environ.get("TICKER_NEWS_TABLE_NAME", "ticker_news")
+_NEWS_MAX_AGE_HOURS = int(os.environ.get("TICKER_NEWS_MAX_AGE_HOURS", 6))
 
 # Basic stock ticker shape check: 1-10 uppercase letters, with an optional
 # ".X" or ".XX" share-class suffix (e.g. "BRK.B"). This rejects obviously
@@ -91,6 +96,19 @@ def ensure_ticker_details_table():
             symbol TEXT PRIMARY KEY,
             profile JSONB,
             price_history JSONB,
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """
+    )
+
+
+def ensure_ticker_news_table():
+    """Create the per-symbol news cache table in Lakebase if it doesn't exist yet."""
+    lakebase.run_write(
+        f"""
+        CREATE TABLE IF NOT EXISTS {NEWS_TABLE_NAME} (
+            symbol TEXT PRIMARY KEY,
+            news JSONB,
             fetched_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """
@@ -334,6 +352,73 @@ def delete_from_watchlist(symbol):
         return jsonify({"error": f"{symbol} is not on your watchlist"}), 404
 
     return jsonify({"symbol": symbol, "email": email, "deleted": True})
+
+
+@app.route("/watchlist/<symbol>/news", methods=["GET"])
+def get_ticker_news_route(symbol):
+    """
+    Return recent news headlines for a symbol on the current user's
+    watchlist. Fetched on demand (only when the UI's "News" button is
+    clicked for that row) rather than pre-loaded for every symbol, and
+    cached per-symbol (shared across users) for _NEWS_MAX_AGE_HOURS.
+    """
+    ensure_watchlist_table()
+
+    symbol = symbol.strip().upper() if isinstance(symbol, str) else ""
+    if not symbol or not _TICKER_RE.match(symbol):
+        return jsonify({"error": f"Invalid ticker symbol: {symbol!r}"}), 400
+
+    email = _current_user_email()
+    owned = lakebase.run_query(
+        f"SELECT 1 FROM {WATCHLIST_TABLE_NAME} WHERE symbol = %s AND email = %s",
+        (symbol, email),
+    )
+    if not owned:
+        return jsonify({"error": f"{symbol} is not on your watchlist"}), 404
+
+    news = _get_or_refresh_news(MassiveClient(), symbol)
+    return jsonify({"symbol": symbol, "news": news})
+
+
+def _get_or_refresh_news(client: MassiveClient, symbol: str):
+    """
+    Return cached news for a symbol, refreshing from Massive only when
+    there's no cached row yet or it's older than _NEWS_MAX_AGE_HOURS.
+
+    Cache is keyed by symbol only (not per-user), same pattern as
+    _get_or_refresh_ticker_details, so repeated clicks (by the same or
+    different users) cost at most one Massive call per refresh window.
+    """
+    ensure_ticker_news_table()
+
+    cached = lakebase.run_query(
+        f"""
+        SELECT news FROM {NEWS_TABLE_NAME}
+        WHERE symbol = %s AND fetched_at > now() - (%s * INTERVAL '1 hour')
+        """,
+        (symbol, _NEWS_MAX_AGE_HOURS),
+    )
+    if cached:
+        return cached[0]["news"]
+
+    news = None
+    try:
+        news = client.get_ticker_news(symbol)
+    except requests.HTTPError:
+        logger.warning("No news available for %s", symbol)
+
+    lakebase.run_write(
+        f"""
+        INSERT INTO {NEWS_TABLE_NAME} (symbol, news, fetched_at)
+        VALUES (%s, %s, now())
+        ON CONFLICT (symbol) DO UPDATE
+            SET news = EXCLUDED.news,
+                fetched_at = EXCLUDED.fetched_at
+        """,
+        (symbol, _json.dumps(news) if news is not None else None),
+    )
+
+    return news
 
 
 def _pick(d: dict, *keys):
