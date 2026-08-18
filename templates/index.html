@@ -2,97 +2,268 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Massive Stock Watchlist</title>
+  <title>Support Ticket Management</title>
   <style>
-    body { font-family: -apple-system, Arial, sans-serif; max-width: 560px; margin: 60px auto; color: #222; }
-    h1 { font-size: 20px; }
-    label { display: block; margin-top: 16px; font-weight: 600; }
-    input[type="text"] { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; cursor: pointer; }
-    #result { margin-top: 20px; white-space: pre-wrap; background: #f6f6f6; padding: 12px; border-radius: 6px; min-height: 20px; }
-    .hint { color: #777; font-size: 13px; margin-top: 4px; }
-    table { width: 100%; margin-top: 24px; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-    th { font-size: 13px; color: #555; text-transform: uppercase; }
+    body { font-family: -apple-system, Arial, sans-serif; max-width: 1000px; margin: 40px auto; color: #222; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    h2 { font-size: 18px; margin-top: 0; }
+    .hint { color: #666; font-size: 13px; margin-top: 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .panel { border: 1px solid #ddd; border-radius: 8px; padding: 16px; background: #fff; }
+    label { display: block; margin-top: 12px; font-weight: 600; }
+    input[type="text"], select, textarea {
+      width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box;
+      border: 1px solid #ccc; border-radius: 4px;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button { margin-top: 12px; padding: 8px 14px; cursor: pointer; }
+    button.danger { background: #b42318; color: white; border: none; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+    th { font-size: 12px; color: #555; text-transform: uppercase; }
+    #messages li { margin-bottom: 8px; }
+    #result { margin-top: 14px; white-space: pre-wrap; background: #f6f6f6; padding: 10px; border-radius: 6px; min-height: 20px; }
+    .small { font-size: 12px; color: #666; }
   </style>
 </head>
 <body>
-  <h1>Stock Watchlist</h1>
-  <p class="hint">Enter a single ticker symbol. This sends exactly ONE call to the Massive API to fetch the latest price, then adds it to your watchlist.</p>
+  <h1>Support Ticket Management</h1>
+  <p class="hint">Manage support tickets and related messages directly from Lakebase/PostgreSQL.</p>
 
-  <form id="stock-form">
-    <label for="symbol">Ticker symbol</label>
-    <input type="text" id="symbol" name="symbol" placeholder="AAPL" required>
-    <button type="submit">Add to watchlist</button>
-  </form>
+  <div class="grid">
+    <div class="panel">
+      <h2>Create Ticket</h2>
+      <form id="create-ticket-form">
+        <label for="title">Title</label>
+        <input type="text" id="title" required>
 
-  <div id="result"></div>
+        <label for="created_by">Created by</label>
+        <input type="text" id="created_by" placeholder="name@example.com" required>
 
-  <table id="watchlist-table">
-    <thead>
-      <tr>
-        <th>Symbol</th>
-        <th>Email</th>
-        <th>Latest price</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody id="watchlist-body"></tbody>
-  </table>
+        <label for="new_status">Status</label>
+        <select id="new_status">
+          <option>Open</option>
+          <option>In Progress</option>
+          <option>Resolved</option>
+        </select>
+
+        <button type="submit">Create ticket</button>
+      </form>
+      <div id="result"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Ticket Details</h2>
+      <div id="ticket-details">Select a ticket to view details.</div>
+
+      <form id="status-form" style="display:none;">
+        <label for="status">Update status</label>
+        <select id="status">
+          <option>Open</option>
+          <option>In Progress</option>
+          <option>Resolved</option>
+        </select>
+        <button type="submit">Save status</button>
+      </form>
+
+      <button id="delete-btn" class="danger" style="display:none;">Delete ticket</button>
+
+      <h3>Messages</h3>
+      <ul id="messages"></ul>
+
+      <form id="message-form" style="display:none;">
+        <label for="author">Author</label>
+        <input type="text" id="author" placeholder="name@example.com" required>
+
+        <label for="message_text">Add message</label>
+        <textarea id="message_text" required></textarea>
+
+        <button type="submit">Add message</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top: 20px;">
+    <h2>Ticket List</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Created by</th>
+          <th>Created at</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="ticket-body"></tbody>
+    </table>
+  </div>
 
   <script>
-    const form = document.getElementById("stock-form");
+    const ticketBody = document.getElementById("ticket-body");
     const resultEl = document.getElementById("result");
-    const watchlistBody = document.getElementById("watchlist-body");
+    const ticketDetailsEl = document.getElementById("ticket-details");
+    const messagesEl = document.getElementById("messages");
+    const statusForm = document.getElementById("status-form");
+    const messageForm = document.getElementById("message-form");
+    const deleteBtn = document.getElementById("delete-btn");
 
-    async function loadWatchlist() {
-      try {
-        const resp = await fetch("/watchlist");
-        const data = await resp.json();
-        if (!resp.ok) {
-          resultEl.textContent = "Error loading watchlist: " + (data.error || resp.statusText);
-          return;
-        }
-        watchlistBody.innerHTML = "";
-        data.forEach((row) => {
-          const tr = document.createElement("tr");
-          const price = row.latest_price !== null && row.latest_price !== undefined
-            ? Number(row.latest_price).toFixed(2)
-            : "-";
-          const updated = row.updated_at ? new Date(row.updated_at).toLocaleString() : "-";
-          tr.innerHTML = `<td>${row.symbol}</td><td>${row.email || "-"}</td><td>${price}</td><td>${updated}</td>`;
-          watchlistBody.appendChild(tr);
-        });
-      } catch (err) {
-        resultEl.textContent = "Failed to load watchlist: " + err;
-      }
+    let selectedTicketId = null;
+
+    function setMessage(text) {
+      resultEl.textContent = text;
     }
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const symbol = document.getElementById("symbol").value;
-      resultEl.textContent = "Adding to watchlist...";
-
-      try {
-        const resp = await fetch("/watchlist", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ symbol }),
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-          resultEl.textContent = "Error: " + (data.error || resp.statusText);
-          return;
-        }
-        resultEl.textContent = "Added " + data.symbol + " at price " + data.latest_price;
-        document.getElementById("symbol").value = "";
-        loadWatchlist();
-      } catch (err) {
-        resultEl.textContent = "Request failed: " + err;
+    async function loadTickets() {
+      const resp = await fetch('/tickets');
+      const data = await resp.json();
+      if (!resp.ok) {
+        setMessage("Error loading tickets: " + (data.error || resp.statusText));
+        return;
       }
+
+      ticketBody.innerHTML = '';
+      data.forEach(ticket => {
+        const tr = document.createElement('tr');
+        const created = ticket.created_at ? new Date(ticket.created_at).toLocaleString() : '-';
+        tr.innerHTML = `
+          <td>${ticket.ticket_id}</td>
+          <td>${ticket.title}</td>
+          <td>${ticket.status}</td>
+          <td>${ticket.created_by}</td>
+          <td>${created}</td>
+          <td><button data-ticket-id="${ticket.ticket_id}">View</button></td>
+        `;
+        tr.querySelector('button').addEventListener('click', () => loadTicketDetails(ticket.ticket_id));
+        ticketBody.appendChild(tr);
+      });
+    }
+
+    async function loadTicketDetails(ticketId) {
+      const resp = await fetch(`/tickets/${ticketId}`);
+      const data = await resp.json();
+      if (!resp.ok) {
+        setMessage("Error loading ticket: " + (data.error || resp.statusText));
+        return;
+      }
+
+      selectedTicketId = ticketId;
+      ticketDetailsEl.innerHTML = `
+        <div><strong>Ticket #${data.ticket_id}</strong></div>
+        <div>${data.title}</div>
+        <div class="small">Created by ${data.created_by} at ${new Date(data.created_at).toLocaleString()}</div>
+      `;
+
+      document.getElementById('status').value = data.status;
+      statusForm.style.display = 'block';
+      messageForm.style.display = 'block';
+      deleteBtn.style.display = 'inline-block';
+
+      messagesEl.innerHTML = '';
+      data.messages.forEach(msg => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${msg.author}</strong> (${new Date(msg.created_at).toLocaleString()}): ${msg.message_text}`;
+        messagesEl.appendChild(li);
+      });
+    }
+
+    document.getElementById('create-ticket-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        title: document.getElementById('title').value,
+        created_by: document.getElementById('created_by').value,
+        status: document.getElementById('new_status').value
+      };
+
+      const resp = await fetch('/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setMessage("Error creating ticket: " + (data.error || resp.statusText));
+        return;
+      }
+
+      setMessage(`Created ticket #${data.ticket_id}`);
+      e.target.reset();
+      await loadTickets();
+      await loadTicketDetails(data.ticket_id);
     });
 
-    loadWatchlist();
+    statusForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!selectedTicketId) return;
+
+      const resp = await fetch(`/tickets/${selectedTicketId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: document.getElementById('status').value })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setMessage("Error updating status: " + (data.error || resp.statusText));
+        return;
+      }
+
+      setMessage(`Updated ticket #${data.ticket_id} to ${data.status}`);
+      await loadTickets();
+      await loadTicketDetails(selectedTicketId);
+    });
+
+    messageForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!selectedTicketId) return;
+
+      const payload = {
+        author: document.getElementById('author').value,
+        message_text: document.getElementById('message_text').value
+      };
+
+      const resp = await fetch(`/tickets/${selectedTicketId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setMessage("Error adding message: " + (data.error || resp.statusText));
+        return;
+      }
+
+      setMessage(`Added message #${data.message_id} to ticket #${selectedTicketId}`);
+      document.getElementById('message_text').value = '';
+      await loadTicketDetails(selectedTicketId);
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      if (!selectedTicketId) return;
+      const confirmed = window.confirm(`Delete ticket #${selectedTicketId} and all related messages?`);
+      if (!confirmed) return;
+
+      const resp = await fetch(`/tickets/${selectedTicketId}`, { method: 'DELETE' });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setMessage("Error deleting ticket: " + (data.error || resp.statusText));
+        return;
+      }
+
+      setMessage(`Deleted ticket #${selectedTicketId}`);
+      selectedTicketId = null;
+      ticketDetailsEl.textContent = 'Select a ticket to view details.';
+      messagesEl.innerHTML = '';
+      statusForm.style.display = 'none';
+      messageForm.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      await loadTickets();
+    });
+
+    loadTickets();
   </script>
 </body>
 </html>
