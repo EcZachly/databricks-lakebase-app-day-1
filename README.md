@@ -179,3 +179,33 @@ history.
 - The Massive API pagination in `massive_client.py` assumes a `{"items": [...], "next_cursor": ...}`
   cursor-based shape. Adjust `paginated_get` to match the real API's pagination contract.
 - For very large batch upserts, consider `psycopg2.extras.execute_values` instead of per-row inserts.
+
+## Troubleshooting
+
+### `FATAL FIPS SELFTEST FAILURE` / `Aborted (core dumped)` on `import psycopg2`
+
+This is caused by `psycopg2-binary`'s bundled OpenSSL 3.x build triggering a broken
+FIPS self-test on some Databricks cluster images — it's unrelated to your code.
+
+**Fix:** install the source version instead, which compiles against the system's
+libpq/OpenSSL:
+```bash
+pip uninstall -y psycopg2-binary
+pip install psycopg2
+```
+This requires `gcc` and `pg_config` to be available (usually already present on
+Databricks cluster images — check with `which gcc` and `which pg_config`).
+
+### `permission denied for schema public` when the app tries to `CREATE TABLE`
+
+The Postgres role you created (e.g. `massive_app`) has login credentials but no
+privileges on the `public` schema by default — only your own owner identity has
+those automatically.
+
+**Fix:** in the Lakebase SQL Editor, connected as your own identity, run
+(substituting your actual role name):
+```sql
+GRANT USAGE, CREATE ON SCHEMA public TO massive_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO massive_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO massive_app;
+```
