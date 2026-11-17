@@ -119,6 +119,8 @@ All of this is done through the Databricks workspace UI:
 - `POST /sync?batch_size=500` with optional JSON body `{"path": "/records"}` - pull from Massive API and upsert into Lakebase
 - `GET /watchlist` - get the current user's watchlist symbols with last known price
 - `POST /watchlist` - add/update a symbol on the current user's watchlist
+- `DELETE /watchlist` - remove a symbol from the current user's watchlist
+- `POST /news` - fetch news for a ticker from Massive (one API call), upsert articles into the separate `ticker_news` table, and return them
 
 ## Enabling Change Data Feed (CDF) for Postgres tables
 

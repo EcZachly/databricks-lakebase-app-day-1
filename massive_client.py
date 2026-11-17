@@ -85,3 +85,14 @@ class MassiveClient:
         """
         data = self.get(f"/v2/aggs/ticker/{symbol}/prev")
         return data
+
+    def get_ticker_news(self, symbol: str, limit: int = 10) -> dict:
+        """
+        Fetch recent news articles for a single ticker in a SINGLE API call
+        via the /v2/reference/news endpoint with a ?ticker= filter. (Verified:
+        Massive supports the query-param form; path-param variants 404.)
+        Each article includes title, author, publisher, published_utc,
+        article_url, image_url, description, and a "tickers" array.
+        """
+        data = self.get("/v2/reference/news", {"ticker": symbol, "limit": limit})
+        return data
